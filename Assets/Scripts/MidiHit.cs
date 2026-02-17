@@ -10,12 +10,6 @@ public class MidiHitZone
     public GameObject hitZone;
     public ParticleSystem hitParticles;
 
-    // Use one AudioSource per zone to play clips
-    public AudioSource hitAudio;
-
-    // Velocity-layered samples: index 0=soft, 1=medium, 2=hard...
-    public AudioClip[] velocityClips;
-
     // Per-note emission color
     public Color emissionColor = Color.white;
 
@@ -99,39 +93,12 @@ public class MidiHit : MonoBehaviour
 
         if (mz.hitParticles != null) mz.hitParticles.Play();
 
-        // Pick clip by velocity and play it
-        PlayVelocityClip(mz, velocity01);
-
         if (mz.activePulse != null)
             StopCoroutine(mz.activePulse);
 
         mz.activePulse = StartCoroutine(PulseEmissionForMaterials(mz.runtimeMaterials, velocity01, mz));
     }
 
-    void PlayVelocityClip(MidiHitZone mz, float velocity01)
-    {
-        if (mz.hitAudio == null || mz.velocityClips == null || mz.velocityClips.Length == 0) return;
-
-        // Map velocity to layer index
-        int idx = 0;
-        if (mz.velocityClips.Length == 1) idx = 0;
-        else
-        {
-            // Evenly distribute 0..1 across array length
-            float scaled = velocity01 * mz.velocityClips.Length;
-            idx = Mathf.Clamp(Mathf.FloorToInt(scaled), 0, mz.velocityClips.Length - 1);
-        }
-
-        var clip = mz.velocityClips[idx];
-        if (clip == null) return;
-
-        // Optional: scale volume minimally by velocity, main dynamics come from clip selection
-        mz.hitAudio.volume = Mathf.Lerp(0.7f, 1f, velocity01);
-        mz.hitAudio.pitch = 1f; // keep pitch fixed for drums
-
-        // PlayOneShot avoids interrupting overlapping hits
-        mz.hitAudio.PlayOneShot(clip, 1f);
-    }
     IEnumerator PulseEmissionForMaterials(List<Material> mats, float velocity01, MidiHitZone zoneRef)
     {
         // Use HDR emission so it shows up even on bright albedo.
