@@ -10,6 +10,7 @@ public class BeatmapLibrary : MonoBehaviour
     
     public event Action<List<BeatmapData>> OnBeatmapsLoaded;
     public event Action<BeatmapData> OnBeatmapAdded;
+    public event Action<BeatmapData> OnBeatmapDeleted;
     
     public List<BeatmapData> Beatmaps => beatmaps;
     
@@ -141,18 +142,79 @@ public class BeatmapLibrary : MonoBehaviour
     
     public void DeleteBeatmap(BeatmapData beatmap)
     {
-        if (beatmap != null && beatmaps.Contains(beatmap))
+        if (beatmap == null)
+        {
+            UnityEngine.Debug.LogWarning("[BeatmapLibrary] Cannot delete null beatmap!");
+            return;
+        }
+        
+        if (!beatmaps.Contains(beatmap))
+        {
+            UnityEngine.Debug.LogWarning($"[BeatmapLibrary] Beatmap '{beatmap.title}' not found in library!");
+            return;
+        }
+        
+        try
         {
             // Delete the folder
             string folderPath = Path.GetDirectoryName(beatmap.jsonFilePath);
             if (Directory.Exists(folderPath))
             {
                 Directory.Delete(folderPath, true);
+                UnityEngine.Debug.Log($"[BeatmapLibrary] Deleted folder: {folderPath}");
+            }
+            else
+            {
+                UnityEngine.Debug.LogWarning($"[BeatmapLibrary] Folder not found: {folderPath}");
             }
             
+            // Remove from list
             beatmaps.Remove(beatmap);
+            UnityEngine.Debug.Log($"[BeatmapLibrary] Removed beatmap from library: {beatmap.title}");
+            
+            // Notify listeners
+            OnBeatmapDeleted?.Invoke(beatmap);
             OnBeatmapsLoaded?.Invoke(beatmaps);
         }
+        catch (Exception e)
+        {
+            UnityEngine.Debug.LogError($"[BeatmapLibrary] Error deleting beatmap '{beatmap.title}': {e.Message}");
+            throw;
+        }
+    }
+    
+    public void DeleteAllBeatmaps()
+    {
+        UnityEngine.Debug.Log($"[BeatmapLibrary] Deleting all {beatmaps.Count} beatmaps...");
+        
+        // Create a copy of the list to avoid modification during iteration
+        List<BeatmapData> beatmapsToDelete = new List<BeatmapData>(beatmaps);
+        
+        int successCount = 0;
+        int failCount = 0;
+        
+        foreach (var beatmap in beatmapsToDelete)
+        {
+            try
+            {
+                string folderPath = Path.GetDirectoryName(beatmap.jsonFilePath);
+                if (Directory.Exists(folderPath))
+                {
+                    Directory.Delete(folderPath, true);
+                    successCount++;
+                }
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError($"[BeatmapLibrary] Failed to delete '{beatmap.title}': {e.Message}");
+                failCount++;
+            }
+        }
+        
+        beatmaps.Clear();
+        UnityEngine.Debug.Log($"[BeatmapLibrary] Deleted {successCount} beatmaps, {failCount} failed");
+        
+        OnBeatmapsLoaded?.Invoke(beatmaps);
     }
     
     [Serializable]

@@ -41,6 +41,8 @@ public class BeatmapImporter : MonoBehaviour
     
     void OnImportButtonClicked()
     {
+        UnityEngine.Debug.LogWarning("[BeatmapImporter] Import button clicked - Opening file browser...");
+        
         // First, select MIDI file
         var midiExtensions = new[] {
             new ExtensionFilter("MIDI/XML Files", "mid", "midi", "xml", "musicxml"),

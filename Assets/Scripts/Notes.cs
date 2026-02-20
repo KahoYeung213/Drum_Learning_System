@@ -144,7 +144,17 @@ void SpawnNote(NoteData noteData)
 
     GameObject note = Instantiate(notePrefab, laneSpawnPoints[noteData.lane].position, Quaternion.identity);
     FallingNote fallingNote = note.AddComponent<FallingNote>();
-    fallingNote.Initialize(noteData, laneHitTargets[noteData.lane], fallSpeed, noteLifetime);
+    
+    // Calculate fall duration based on time until hit
+    float fallDuration = noteData.time - (Time.time - songStartTime);
+    if (fallDuration <= 0) fallDuration = 0.1f; // Minimum duration
+    
+    fallingNote.Initialize(
+        laneHitTargets[noteData.lane].position, // target position
+        fallDuration, // duration
+        laneHitTargets[noteData.lane].gameObject, // drum mesh
+        noteData.time // hit time
+    );
 
     Debug.Log($"Spawned note lane {noteData.lane} at {laneSpawnPoints[noteData.lane].position}");
 }

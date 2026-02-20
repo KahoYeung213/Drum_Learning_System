@@ -2,80 +2,54 @@ using UnityEngine;
 
 public class FallingNote : MonoBehaviour
 {
-    private NoteData noteData;
-    private Transform target;
-    private float speed;
-    private float lifetime;
-    private float spawnTime;
-    private bool hasHit = false;
+    private Vector3 _startPos;
+    private Vector3 _endPos;
+    private float _fallDuration;
+    private float _elapsed;
+    private GameObject _drumMesh;
+    private bool _hasArrived;
+    private float _hitTime;
 
-    public void Initialize(NoteData data, Transform hitTarget, float fallSpeed, float noteLifetime)
+    public void Initialize(Vector3 target, float duration, GameObject drumMesh, float hitTime)
     {
-        noteData = data;
-        target = hitTarget;
-        speed = fallSpeed;
-        lifetime = noteLifetime;
-        spawnTime = Time.time;
-        
-        // Set note color based on velocity (optional visual feedback)
-        Renderer renderer = GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            float normalizedVelocity = Mathf.Clamp01(data.velocity / 127f);
-            renderer.material.color = Color.Lerp(Color.gray, Color.red, normalizedVelocity);
-        }
+        _startPos = transform.position;
+        _endPos = target;
+        _fallDuration = duration;
+        _drumMesh = drumMesh;
+        _hitTime = hitTime;
+        _elapsed = 0f;
     }
 
     void Update()
     {
-        if (hasHit) return;
+        _elapsed += Time.deltaTime;
+        float t = Mathf.Clamp01(_elapsed / _fallDuration);
 
-        // Move towards target
-        transform.position = Vector3.MoveTowards(transform.position, target.position, speed * Time.deltaTime);
+        // Move smoothly from spawn point to drum piece
+        transform.position = Vector3.Lerp(_startPos, _endPos, t);
 
-        // Check if reached target
-        float distance = Vector3.Distance(transform.position, target.position);
-        if (distance < 0.5f) // Hit threshold
+        if (t >= 1f && !_hasArrived)
         {
-            HitTarget();
-        }
-
-        // Auto-destroy after lifetime
-        if (Time.time - spawnTime > lifetime)
-        {
-            Destroy(gameObject);
+            _hasArrived = true;
+            OnArrived();
         }
     }
 
-    void HitTarget()
+    void OnArrived()
     {
-        hasHit = true;
-        
-        // Find MidiHit component and trigger the hit
-        MidiHit midiHit = FindObjectOfType<MidiHit>();
-        if (midiHit != null)
-        {
-            // Convert lane to MIDI note (you may need to adjust this mapping)
-            int midiNote = GetMidiNoteFromLane(noteData.lane);
-            float velocity = noteData.velocity / 127f; // Normalize velocity
-            
-            // Call the public TriggerHit method directly
-            midiHit.TriggerHit(midiNote, velocity);
-        }
-
-        // Destroy the note
-        Destroy(gameObject, 0.1f);
+        // Light up the drum mesh
+        StartCoroutine(LightUpDrum());
     }
 
-    int GetMidiNoteFromLane(int lane)
+    System.Collections.IEnumerator LightUpDrum()
     {
-        // Map lane numbers to MIDI notes
-        // Adjust these values to match your drum kit MIDI mapping
-        int[] midiMapping = { 36, 38, 42, 46, 49, 51 }; // Example: Kick, Snare, Hi-hat, etc.
-        
-        if (lane >= 0 && lane < midiMapping.Length)
-            return midiMapping[lane];
-        
-        return 36; // Default to kick drum
+        var renderer = _drumMesh.GetComponent<Renderer>();
+        var originalColor = renderer.material.color;
+        renderer.material.color = Color.yellow;
+
+        yield return new WaitForSeconds(0.15f);
+
+        renderer.material.color = originalColor;
+        Destroy(gameObject);
     }
 }
