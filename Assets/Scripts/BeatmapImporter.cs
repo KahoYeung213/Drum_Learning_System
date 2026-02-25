@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using SFB;
 using System;
 using System.IO;
@@ -10,9 +11,12 @@ public class BeatmapImporter : MonoBehaviour
 {
     [Header("UI References")]
     [SerializeField] private Button importButton;
+    [SerializeField] private TMP_InputField drumOffsetInput; // Optional: Input field for drum start offset
     
-    [Header("Settings")]
+    [Header("Beatmap Settings")]
     [SerializeField] private float spawnLeadTime = 2.0f;
+    [SerializeField] private float audioOffset = 3.0f; // Countdown time before first note
+    [SerializeField] private float defaultDrumStartOffset = 0.0f; // Default offset in seconds
     
     private string pythonScriptPath;
     private string beatmapsDirectory;
@@ -96,6 +100,21 @@ public class BeatmapImporter : MonoBehaviour
         UnityEngine.Debug.Log($"Processing MIDI: {tempMidiPath}");
         UnityEngine.Debug.Log($"With audio: {tempAudioPath}");
         
+        // Get drum start offset from input field or use default
+        float drumStartOffset = defaultDrumStartOffset;
+        if (drumOffsetInput != null && !string.IsNullOrEmpty(drumOffsetInput.text))
+        {
+            if (float.TryParse(drumOffsetInput.text, out float parsedOffset))
+            {
+                drumStartOffset = parsedOffset;
+                UnityEngine.Debug.Log($"Using drum start offset from input: {drumStartOffset}s");
+            }
+            else
+            {
+                UnityEngine.Debug.LogWarning($"Invalid offset input '{drumOffsetInput.text}', using default: {defaultDrumStartOffset}s");
+            }
+        }
+        
         // Generate unique folder for this beatmap
         string beatmapName = Path.GetFileNameWithoutExtension(tempMidiPath);
         string beatmapFolder = Path.Combine(beatmapsDirectory, beatmapName);
@@ -118,8 +137,8 @@ public class BeatmapImporter : MonoBehaviour
         File.Copy(tempMidiPath, midiCopyPath, true);
         File.Copy(tempAudioPath, audioCopyPath, true);
         
-        // Parse MIDI to JSON
-        yield return StartCoroutine(RunPythonParser(midiCopyPath, jsonPath));
+        // Parse MIDI to JSON with offset
+        yield return StartCoroutine(RunPythonParser(midiCopyPath, jsonPath, drumStartOffset));
         
         // Load and create BeatmapData
         if (File.Exists(jsonPath))
@@ -142,12 +161,13 @@ public class BeatmapImporter : MonoBehaviour
         tempAudioPath = null;
     }
     
-    IEnumerator RunPythonParser(string inputPath, string outputPath)
+    IEnumerator RunPythonParser(string inputPath, string outputPath, float drumStartOffset)
     {
         ProcessStartInfo startInfo = new ProcessStartInfo
         {
             FileName = "python",
-            Arguments = $"\"{pythonScriptPath}\" \"{inputPath}\" \"{outputPath}\" {spawnLeadTime}",
+            // Pass all parameters: input, output, spawn_lead, audio_offset, drum_start_offset
+            Arguments = $"\"{pythonScriptPath}\" \"{inputPath}\" \"{outputPath}\" {spawnLeadTime} {audioOffset} {drumStartOffset}",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -155,6 +175,7 @@ public class BeatmapImporter : MonoBehaviour
         };
         
         UnityEngine.Debug.Log($"Running: {startInfo.FileName} {startInfo.Arguments}");
+        UnityEngine.Debug.Log($"Drum Start Offset: {drumStartOffset}s (song will skip to this position on playback)");
         
         Process process = new Process { StartInfo = startInfo };
         process.Start();
@@ -197,6 +218,13 @@ public class BeatmapImporter : MonoBehaviour
                 metadata = wrapper.metadata,
                 beatmap = wrapper.beatmap
             };
+            
+            // Ensure imported beatmaps have audio_includes_countdown = false
+            if (beatmapData.metadata != null)
+            {
+                beatmapData.metadata.audio_includes_countdown = false;
+                UnityEngine.Debug.Log($"[BeatmapImporter] Loaded beatmap: {beatmapData.title}, offset={beatmapData.metadata.drum_start_offset:F1}s, audio_includes_countdown={beatmapData.metadata.audio_includes_countdown}");
+            }
             
             return beatmapData;
         }

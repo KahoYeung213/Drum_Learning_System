@@ -63,7 +63,7 @@ def pitch_to_midi(p):
         except Exception:
             return None
 
-def parse_musicxml_to_beatmap(infile, spawn_lead=0.0):
+def parse_musicxml_to_beatmap(infile, spawn_lead=0.0, audio_offset=3.0, drum_start_offset=0.0):
     score = converter.parse(infile)
     tempo_map = extract_tempo_map(score)
     is_midi = str(infile).lower().endswith(('.mid', '.midi'))
@@ -205,7 +205,12 @@ def parse_musicxml_to_beatmap(infile, spawn_lead=0.0):
         lane = PITCH_TO_LANE.get(e["midi"])
         if lane is None:
             continue
-        hit_time = float(e["time"])
+        
+        # Add offset + 3 seconds to all notes
+        # offset=13: MIDI 0 → beatmap 16 (ready timer from audio 10→13)
+        # offset=0: MIDI 0 → beatmap 3 (ready timer from audio 0→3)
+        hit_time = float(e["time"]) + float(drum_start_offset) + float(audio_offset)
+        
         spawn_time = max(0.0, hit_time - float(spawn_lead))
         beatmap.append({"lane": int(lane), "time": round(hit_time,6), "spawnTime": round(spawn_time,6), "velocity": int(e["velocity"])})
 
@@ -220,7 +225,7 @@ def parse_musicxml_to_beatmap(infile, spawn_lead=0.0):
 
     return cleaned, tempo_map, pitch_counts, score
 
-def extract_metadata(score, tempo_map, beatmap, infile):
+def extract_metadata(score, tempo_map, beatmap, infile, audio_offset=3.0, drum_start_offset=0.0):
     meta = getattr(score, 'metadata', None)
     title = getattr(meta, 'title', None) or Path(infile).stem
     bpms = [b for (_, b) in tempo_map]
@@ -248,18 +253,21 @@ def extract_metadata(score, tempo_map, beatmap, infile):
         "approx_total_beats": round(total_beats,2) if total_beats else None,
         "events_count": events_count,
         "lanes_used": lanes_used,
-        "events_per_second": round(density,3)
+        "events_per_second": round(density,3),
+        "drum_start_offset": round(drum_start_offset, 6)
     }
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python music_xml_to_beatmap.py input_musicxml/ output.json")
+        print("Usage: python music_xml_to_beatmap.py input_musicxml output.json [spawn_lead] [audio_offset] [drum_start_offset]")
         sys.exit(1)
     infile = sys.argv[1]
     outfile = sys.argv[2]
     spawn_lead = float(sys.argv[3]) if len(sys.argv) >= 4 else 2.0
-    beatmap, tempo_map, pitch_counts, score = parse_musicxml_to_beatmap(infile, spawn_lead=spawn_lead)
-    metadata = extract_metadata(score, tempo_map, beatmap, infile)
+    audio_offset = float(sys.argv[4]) if len(sys.argv) >= 5 else 3.0
+    drum_start_offset = float(sys.argv[5]) if len(sys.argv) >= 6 else 0.0
+    beatmap, tempo_map, pitch_counts, score = parse_musicxml_to_beatmap(infile, spawn_lead=spawn_lead, audio_offset=audio_offset, drum_start_offset=drum_start_offset)
+    metadata = extract_metadata(score, tempo_map, beatmap, infile, audio_offset=audio_offset, drum_start_offset=drum_start_offset)
     out_obj = {"metadata": metadata, "beatmap": beatmap}
     Path(outfile).parent.mkdir(parents=True, exist_ok=True)
     with open(outfile, "w", encoding="utf-8") as f:

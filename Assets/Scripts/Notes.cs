@@ -31,6 +31,9 @@ public class Notes : MonoBehaviour
     [Header("JSON File")]
     public TextAsset jsonFile; // Drag your JSON file here in inspector
     
+    [Header("Visual Settings")]
+    [SerializeField] private MidiHit midiHit; // Reference to get emission colors
+    
     private List<NoteData> songNotes = new List<NoteData>();
     private float songStartTime;
     private int nextNoteIndex = 0;
@@ -39,6 +42,12 @@ public class Notes : MonoBehaviour
     // ...existing code...
 void Start()
 {
+    // Find MidiHit if not assigned
+    if (midiHit == null)
+    {
+        midiHit = FindFirstObjectByType<MidiHit>();
+    }
+    
     LoadNotesFromJSON();
     // Auto-start so you don't rely on input
     StartSong();
@@ -149,11 +158,19 @@ void SpawnNote(NoteData noteData)
     float fallDuration = noteData.time - (Time.time - songStartTime);
     if (fallDuration <= 0) fallDuration = 0.1f; // Minimum duration
     
+    // Get emission color for this lane (default to white if not available)
+    Color emissionColor = Color.white;
+    if (midiHit != null && midiHit.mappings != null && noteData.lane < midiHit.mappings.Count)
+    {
+        emissionColor = midiHit.mappings[noteData.lane].emissionColor;
+    }
+    
     fallingNote.Initialize(
         laneHitTargets[noteData.lane].position, // target position
         fallDuration, // duration
         laneHitTargets[noteData.lane].gameObject, // drum mesh
-        noteData.time // hit time
+        noteData.time, // hit time
+        emissionColor // emission color
     );
 
     Debug.Log($"Spawned note lane {noteData.lane} at {laneSpawnPoints[noteData.lane].position}");

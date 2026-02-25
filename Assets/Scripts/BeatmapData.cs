@@ -35,6 +35,8 @@ public class BeatmapData
         public int events_count;
         public List<int> lanes_used;
         public float events_per_second;
+        public float drum_start_offset; // When the drum part starts in the song (seconds)
+        public bool audio_includes_countdown = false; // True if audio file has countdown silence built in (snipped beatmaps)
     }
     
     public string GetDisplayInfo()

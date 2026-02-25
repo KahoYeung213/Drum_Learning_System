@@ -9,14 +9,19 @@ public class FallingNote : MonoBehaviour
     private GameObject _drumMesh;
     private bool _hasArrived;
     private float _hitTime;
+    private Color _emissionColor = Color.white;
+    
+    // Public property for accessing hit time (used for seeking)
+    public float HitTime => _hitTime;
 
-    public void Initialize(Vector3 target, float duration, GameObject drumMesh, float hitTime)
+    public void Initialize(Vector3 target, float duration, GameObject drumMesh, float hitTime, Color emissionColor)
     {
         _startPos = transform.position;
         _endPos = target;
         _fallDuration = duration;
         _drumMesh = drumMesh;
         _hitTime = hitTime;
+        _emissionColor = emissionColor;
         _elapsed = 0f;
     }
 
@@ -44,12 +49,33 @@ public class FallingNote : MonoBehaviour
     System.Collections.IEnumerator LightUpDrum()
     {
         var renderer = _drumMesh.GetComponent<Renderer>();
-        var originalColor = renderer.material.color;
-        renderer.material.color = Color.yellow;
+        Material mat = renderer.material;
+        
+        // Store original emission
+        Color originalEmission = Color.black;
+        if (mat.HasProperty("_EmissionColor"))
+        {
+            originalEmission = mat.GetColor("_EmissionColor");
+        }
+        
+        // Enable emission and set to the hitzone's emission color
+        mat.EnableKeyword("_EMISSION");
+        mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        
+        if (mat.HasProperty("_EmissionColor"))
+        {
+            // Use HDR emission for visibility (intensity boost)
+            mat.SetColor("_EmissionColor", _emissionColor.linear * 8.0f);
+        }
 
         yield return new WaitForSeconds(0.15f);
 
-        renderer.material.color = originalColor;
+        // Restore original emission
+        if (mat.HasProperty("_EmissionColor"))
+        {
+            mat.SetColor("_EmissionColor", originalEmission);
+        }
+        
         Destroy(gameObject);
     }
 }

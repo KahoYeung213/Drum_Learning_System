@@ -60,6 +60,11 @@ public class NoteSpawner : MonoBehaviour
     private float playbackStartTime = 0f;
     private bool isPlaying = false;
     
+    // Seeking support
+    private List<FallingNote> activeNotes = new List<FallingNote>();
+    private float lastKnownTime = 0f;
+    private const float SEEK_THRESHOLD = 0.5f; // Time jump > 0.5s = seeking
+    
     void Start()
     {
         // Find BeatmapPlayer if not assigned
@@ -203,7 +208,19 @@ public class NoteSpawner : MonoBehaviour
         nextNoteIndex = 0;
         
         Debug.Log($"[NoteSpawner] Loaded {notesToSpawn.Count} notes");
-        Debug.Log($"[NoteSpawner] First note: lane={notesToSpawn[0].lane}, spawnTime={notesToSpawn[0].spawnTime}s, hitTime={notesToSpawn[0].time}s");
+        if (notesToSpawn.Count > 0)
+        {
+            Debug.Log($"[NoteSpawner] First note: lane={notesToSpawn[0].lane}, spawnTime={notesToSpawn[0].spawnTime:F2}s, hitTime={notesToSpawn[0].time:F2}s");
+            Debug.Log($"[NoteSpawner] Last note: lane={notesToSpawn[notesToSpawn.Count-1].lane}, spawnTime={notesToSpawn[notesToSpawn.Count-1].spawnTime:F2}s, hitTime={notesToSpawn[notesToSpawn.Count-1].time:F2}s");
+        }
+        if (notesToSpawn.Count > 1)
+        {
+            Debug.Log($"[NoteSpawner] Second note: lane={notesToSpawn[1].lane}, spawnTime={notesToSpawn[1].spawnTime:F2}s, hitTime={notesToSpawn[1].time:F2}s");
+        }
+        if (notesToSpawn.Count > 5)
+        {
+            Debug.Log($"[NoteSpawner] Sixth note: lane={notesToSpawn[5].lane}, spawnTime={notesToSpawn[5].spawnTime:F2}s, hitTime={notesToSpawn[5].time:F2}s");
+        }
     }
     
     void OnPlaybackStarted()
@@ -211,6 +228,7 @@ public class NoteSpawner : MonoBehaviour
         Debug.Log("[NoteSpawner] Playback started");
         playbackStartTime = Time.time;
         nextNoteIndex = 0;
+        lastKnownTime = 0f;
         isPlaying = true;
     }
     
@@ -225,6 +243,7 @@ public class NoteSpawner : MonoBehaviour
         Debug.Log("[NoteSpawner] Playback stopped");
         isPlaying = false;
         nextNoteIndex = 0;
+        lastKnownTime = 0f;
         
         // Clean up any remaining notes
         CleanupAllNotes();
@@ -232,16 +251,111 @@ public class NoteSpawner : MonoBehaviour
     
     void Update()
     {
-        if (!isPlaying || notesToSpawn.Count == 0) return;
+        if (!isPlaying || notesToSpawn.Count == 0 || beatmapPlayer == null) return;
         
-        float currentTime = Time.time - playbackStartTime;
+        float currentTime = beatmapPlayer.CurrentTime;
         
-        // Spawn notes that are due
-        while (nextNoteIndex < notesToSpawn.Count && notesToSpawn[nextNoteIndex].spawnTime <= currentTime)
+        // Detect seeking (time jump)
+        float timeDelta = currentTime - lastKnownTime;
+        bool didSeek = Mathf.Abs(timeDelta) > SEEK_THRESHOLD;
+        
+        if (didSeek)
         {
-            SpawnNote(notesToSpawn[nextNoteIndex]);
-            nextNoteIndex++;
+            HandleSeek(currentTime);
         }
+        else
+        {
+            // Normal playback: spawn notes that are due
+            while (nextNoteIndex < notesToSpawn.Count && notesToSpawn[nextNoteIndex].spawnTime <= currentTime)
+            {
+                SpawnNote(notesToSpawn[nextNoteIndex]);
+                nextNoteIndex++;
+            }
+        }
+        
+        // Clean up notes that have passed
+        CleanupPassedNotes(currentTime);
+        
+        lastKnownTime = currentTime;
+    }
+    
+    void HandleSeek(float newTime)
+    {
+        Debug.Log($"[NoteSpawner] Seek detected: {lastKnownTime:F2}s → {newTime:F2}s");
+        
+        // Despawn all active notes
+        foreach (var note in activeNotes)
+        {
+            if (note != null)
+            {
+                Destroy(note.gameObject);
+            }
+        }
+        activeNotes.Clear();
+        
+        // Find the correct index for new time
+        // Binary search for efficiency
+        nextNoteIndex = FindNoteIndexForTime(newTime);
+        
+        // Spawn all notes that should be visible at this time
+        // (notes where spawnTime <= currentTime < hitTime)
+        SpawnVisibleNotes(newTime);
+    }
+    
+    int FindNoteIndexForTime(float time)
+    {
+        // Binary search to find first note with spawnTime > time
+        int left = 0;
+        int right = notesToSpawn.Count;
+        
+        while (left < right)
+        {
+            int mid = (left + right) / 2;
+            if (notesToSpawn[mid].spawnTime <= time)
+            {
+                left = mid + 1;
+            }
+            else
+            {
+                right = mid;
+            }
+        }
+        
+        return left;
+    }
+    
+    void SpawnVisibleNotes(float currentTime)
+    {
+        // Spawn notes that should be visible
+        // (spawnTime <= currentTime AND hitTime > currentTime)
+        for (int i = 0; i < notesToSpawn.Count; i++)
+        {
+            BeatmapNote note = notesToSpawn[i];
+            
+            if (note.spawnTime <= currentTime && note.time > currentTime)
+            {
+                SpawnNote(note);
+            }
+        }
+        
+        Debug.Log($"[NoteSpawner] Spawned {activeNotes.Count} visible notes at time {currentTime:F2}s");
+    }
+    
+    void CleanupPassedNotes(float currentTime)
+    {
+        // Remove notes that have been missed (hitTime has passed)
+        activeNotes.RemoveAll(note => 
+        {
+            if (note == null) return true;
+            
+            // Check if note's hit time has passed
+            if (note.HitTime < currentTime - 1f) // 1 second grace period
+            {
+                Destroy(note.gameObject);
+                return true;
+            }
+            return false;
+        });
     }
     
     void SpawnNote(BeatmapNote noteData)
@@ -282,23 +396,33 @@ public class NoteSpawner : MonoBehaviour
             fallingNote = noteObject.AddComponent<FallingNote>();
         }
         
+        // Get emission color from MidiHit for this lane
+        Color emissionColor = GetEmissionColorForLane(noteData.lane);
+        
         // Initialize the falling note
-        float fallTime = noteData.time - (Time.time - playbackStartTime);
+        float fallTime = noteData.time - beatmapPlayer.CurrentTime;
         if (fallTime < 0.1f) fallTime = 0.1f; // Minimum fall time
         
-        fallingNote.Initialize(hitzone.position, fallTime, hitzone.gameObject, noteData.time);
+        fallingNote.Initialize(hitzone.position, fallTime, hitzone.gameObject, noteData.time, emissionColor);
+        
+        // Track this note
+        activeNotes.Add(fallingNote);
         
         Debug.Log($"[NoteSpawner] Spawned note at lane {noteData.lane} {midiInfo}, position {spawnPosition}, will hit at {noteData.time:F2}s");
     }
     
     void CleanupAllNotes()
     {
-        FallingNote[] allNotes = FindObjectsByType<FallingNote>(FindObjectsSortMode.None);
-        foreach (FallingNote note in allNotes)
+        foreach (var note in activeNotes)
         {
-            Destroy(note.gameObject);
+            if (note != null)
+            {
+                Destroy(note.gameObject);
+            }
         }
-        Debug.Log($"[NoteSpawner] Cleaned up {allNotes.Length} notes");
+        activeNotes.Clear();
+        
+        Debug.Log($"[NoteSpawner] Cleaned up all notes");
     }
     
     // Public methods for runtime configuration
@@ -366,5 +490,41 @@ public class NoteSpawner : MonoBehaviour
     public bool IsLaneConfigured(int lane)
     {
         return hitzones != null && lane >= 0 && lane < hitzones.Length && hitzones[lane] != null;
+    }
+    
+    // Get the emission color for a specific lane from MidiHit
+    Color GetEmissionColorForLane(int lane)
+    {
+        if (midiHit == null || midiHit.mappings == null)
+        {
+            return Color.white; // Default fallback
+        }
+        
+        // Find the MIDI note for this lane
+        int targetMidiNote = -1;
+        foreach (var mapping in midiToLaneMap)
+        {
+            if (mapping.lane == lane)
+            {
+                targetMidiNote = mapping.midiNote;
+                break;
+            }
+        }
+        
+        if (targetMidiNote == -1)
+        {
+            return Color.white; // No mapping found
+        }
+        
+        // Find the MidiHitZone with this MIDI note
+        foreach (var midiMapping in midiHit.mappings)
+        {
+            if (midiMapping.midiNote == targetMidiNote)
+            {
+                return midiMapping.emissionColor;
+            }
+        }
+        
+        return Color.white; // Fallback
     }
 }

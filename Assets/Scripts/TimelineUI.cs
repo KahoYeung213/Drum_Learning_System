@@ -7,6 +7,7 @@ public class TimelineUI : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private BeatmapPlayer beatmapPlayer;
+    [SerializeField] private BeatmapSnipper beatmapSnipper; // For scissor/snip functionality
     [SerializeField] private Slider timelineSlider;
     [SerializeField] private TextMeshProUGUI currentTimeText;
     [SerializeField] private TextMeshProUGUI totalTimeText;
@@ -47,6 +48,12 @@ public class TimelineUI : MonoBehaviour
                 Debug.LogError("BeatmapPlayer not found! Please assign it or add a BeatmapPlayer to the scene.");
                 return;
             }
+        }
+        
+        // Find beatmap snipper if not assigned
+        if (beatmapSnipper == null)
+        {
+            beatmapSnipper = FindFirstObjectByType<BeatmapSnipper>();
         }
         
         // Setup slider if assigned
