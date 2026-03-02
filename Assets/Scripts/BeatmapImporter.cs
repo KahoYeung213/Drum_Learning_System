@@ -11,7 +11,18 @@ public class BeatmapImporter : MonoBehaviour
 {
     [Header("UI References")]
     [SerializeField] private Button importButton;
-    [SerializeField] private TMP_InputField drumOffsetInput; // Optional: Input field for drum start offset
+    [SerializeField] private TMP_InputField drumOffsetInput; // Optional: Input field for drum start offset (legacy)
+    
+    [Header("Tap-to-Sync Preview UI")]
+    [SerializeField] private GameObject previewPanel; // Panel shown during audio preview
+    [SerializeField] private Button playPauseButton;
+    [SerializeField] private Button markDrumStartButton;
+    [SerializeField] private Button confirmOffsetButton;
+    [SerializeField] private Button cancelButton;
+    [SerializeField] private TMP_Text currentTimeText;
+    [SerializeField] private TMP_Text markedTimeText;
+    [SerializeField] private TMP_Text instructionText;
+    [SerializeField] private Slider audioSeekSlider; // Optional: scrub through audio
     
     [Header("Beatmap Settings")]
     [SerializeField] private float spawnLeadTime = 2.0f;
@@ -22,6 +33,11 @@ public class BeatmapImporter : MonoBehaviour
     private string beatmapsDirectory;
     private string tempMidiPath;
     private string tempAudioPath;
+    
+    // Preview state
+    private AudioSource previewAudioSource;
+    private float markedDrumStartTime = -1f;
+    private bool isPreviewMode = false;
     
     public event Action<BeatmapData> OnBeatmapImported;
     
@@ -41,6 +57,30 @@ public class BeatmapImporter : MonoBehaviour
         {
             importButton.onClick.AddListener(OnImportButtonClicked);
         }
+        
+        // Set up preview UI
+        if (previewPanel != null)
+        {
+            previewPanel.SetActive(false);
+        }
+        
+        // Create preview audio source
+        GameObject audioObj = new GameObject("PreviewAudioSource");
+        audioObj.transform.SetParent(transform);
+        previewAudioSource = audioObj.AddComponent<AudioSource>();
+        previewAudioSource.playOnAwake = false;
+        
+        // Connect preview UI buttons
+        if (playPauseButton != null)
+            playPauseButton.onClick.AddListener(OnPlayPauseClicked);
+        if (markDrumStartButton != null)
+            markDrumStartButton.onClick.AddListener(OnMarkDrumStart);
+        if (confirmOffsetButton != null)
+            confirmOffsetButton.onClick.AddListener(OnConfirmOffset);
+        if (cancelButton != null)
+            cancelButton.onClick.AddListener(OnCancelPreview);
+        if (audioSeekSlider != null)
+            audioSeekSlider.onValueChanged.AddListener(OnSeekSliderChanged);
     }
     
     void OnImportButtonClicked()
@@ -84,7 +124,7 @@ public class BeatmapImporter : MonoBehaviour
                 if (paths.Length > 0 && !string.IsNullOrEmpty(paths[0]))
                 {
                     tempAudioPath = paths[0];
-                    StartCoroutine(ProcessBeatmap());
+                    StartCoroutine(LoadAudioForPreview());
                 }
                 else
                 {
@@ -95,14 +135,209 @@ public class BeatmapImporter : MonoBehaviour
         );
     }
     
+    IEnumerator LoadAudioForPreview()
+    {
+        UnityEngine.Debug.Log($"Loading audio for preview: {tempAudioPath}");
+        
+        // Load audio clip
+        string uri = "file:///" + tempAudioPath.Replace("\\", "/");
+        using (var www = UnityEngine.Networking.UnityWebRequestMultimedia.GetAudioClip(uri, AudioType.UNKNOWN))
+        {
+            yield return www.SendWebRequest();
+            
+            if (www.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
+            {
+                UnityEngine.Debug.LogError($"Failed to load audio: {www.error}");
+                tempMidiPath = null;
+                tempAudioPath = null;
+                yield break;
+            }
+            
+            AudioClip clip = UnityEngine.Networking.DownloadHandlerAudioClip.GetContent(www);
+            previewAudioSource.clip = clip;
+            
+            // Enter preview mode
+            EnterPreviewMode();
+        }
+    }
+    
+    void EnterPreviewMode()
+    {
+        isPreviewMode = true;
+        markedDrumStartTime = -1f;
+        
+        if (previewPanel != null)
+        {
+            previewPanel.SetActive(true);
+        }
+        
+        UpdatePreviewUI();
+        
+        UnityEngine.Debug.Log("Preview mode active. Play audio and tap 'Mark Drum Start' when you hear the first drum hit.");
+    }
+    
+    void ExitPreviewMode()
+    {
+        isPreviewMode = false;
+        
+        if (previewAudioSource != null && previewAudioSource.isPlaying)
+        {
+            previewAudioSource.Stop();
+        }
+        
+        if (previewPanel != null)
+        {
+            previewPanel.SetActive(false);
+        }
+    }
+    
+    void Update()
+    {
+        if (isPreviewMode)
+        {
+            UpdatePreviewUI();
+        }
+    }
+    
+    void OnDestroy()
+    {
+        // Clean up preview audio
+        if (previewAudioSource != null && previewAudioSource.isPlaying)
+        {
+            previewAudioSource.Stop();
+        }
+    }
+    
+    void UpdatePreviewUI()
+    {
+        if (!isPreviewMode) return;
+        
+        // Update time display
+        if (currentTimeText != null && previewAudioSource != null && previewAudioSource.clip != null)
+        {
+            float current = previewAudioSource.time;
+            float duration = previewAudioSource.clip.length;
+            currentTimeText.text = $"Time: {current:F2}s / {duration:F2}s";
+        }
+        
+        // Update marked time display
+        if (markedTimeText != null)
+        {
+            if (markedDrumStartTime >= 0f)
+            {
+                markedTimeText.text = $"Drum Start: {markedDrumStartTime:F2}s";
+            }
+            else
+            {
+                markedTimeText.text = "Drum Start: Not marked";
+            }
+        }
+        
+        // Update instruction text
+        if (instructionText != null)
+        {
+            if (markedDrumStartTime < 0f)
+            {
+                instructionText.text = "Play the audio and press 'Mark Drum Start' when you hear the first drum hit.";
+            }
+            else
+            {
+                instructionText.text = $"Drum start marked at {markedDrumStartTime:F2}s. Confirm to continue or mark again.";
+            }
+        }
+        
+        // Update play/pause button text
+        if (playPauseButton != null)
+        {
+            var btnText = playPauseButton.GetComponentInChildren<TMP_Text>();
+            if (btnText != null)
+            {
+                btnText.text = (previewAudioSource != null && previewAudioSource.isPlaying) ? "Pause" : "Play";
+            }
+        }
+        
+        // Update confirm button interactable
+        if (confirmOffsetButton != null)
+        {
+            confirmOffsetButton.interactable = (markedDrumStartTime >= 0f);
+        }
+        
+        // Update seek slider
+        if (audioSeekSlider != null && previewAudioSource != null && previewAudioSource.clip != null)
+        {
+            if (!audioSeekSlider.IsActive() || !Input.GetMouseButton(0)) // Don't update while dragging
+            {
+                audioSeekSlider.SetValueWithoutNotify(previewAudioSource.time / previewAudioSource.clip.length);
+            }
+        }
+    }
+    
+    void OnPlayPauseClicked()
+    {
+        if (previewAudioSource == null || previewAudioSource.clip == null) return;
+        
+        if (previewAudioSource.isPlaying)
+        {
+            previewAudioSource.Pause();
+        }
+        else
+        {
+            previewAudioSource.Play();
+        }
+    }
+    
+    void OnMarkDrumStart()
+    {
+        if (previewAudioSource == null || previewAudioSource.clip == null) return;
+        
+        markedDrumStartTime = previewAudioSource.time;
+        UnityEngine.Debug.Log($"Drum start marked at {markedDrumStartTime:F2}s");
+    }
+    
+    void OnSeekSliderChanged(float value)
+    {
+        if (previewAudioSource == null || previewAudioSource.clip == null) return;
+        
+        previewAudioSource.time = value * previewAudioSource.clip.length;
+    }
+    
+    void OnConfirmOffset()
+    {
+        if (markedDrumStartTime < 0f)
+        {
+            UnityEngine.Debug.LogWarning("No drum start time marked!");
+            return;
+        }
+        
+        ExitPreviewMode();
+        StartCoroutine(ProcessBeatmap());
+    }
+    
+    void OnCancelPreview()
+    {
+        ExitPreviewMode();
+        
+        // Clear temp paths
+        tempMidiPath = null;
+        tempAudioPath = null;
+        
+        UnityEngine.Debug.Log("Import cancelled.");
+    }
+    
     IEnumerator ProcessBeatmap()
     {
         UnityEngine.Debug.Log($"Processing MIDI: {tempMidiPath}");
         UnityEngine.Debug.Log($"With audio: {tempAudioPath}");
         
-        // Get drum start offset from input field or use default
+        // Use marked drum start time, or fall back to input field/default
         float drumStartOffset = defaultDrumStartOffset;
-        if (drumOffsetInput != null && !string.IsNullOrEmpty(drumOffsetInput.text))
+        
+        if (markedDrumStartTime >= 0f)
+        {
+            drumStartOffset = markedDrumStartTime;
+            UnityEngine.Debug.Log($"Using marked drum start offset: {drumStartOffset:F2}s");
+        }
+        else if (drumOffsetInput != null && !string.IsNullOrEmpty(drumOffsetInput.text))
         {
             if (float.TryParse(drumOffsetInput.text, out float parsedOffset))
             {
@@ -156,9 +391,10 @@ public class BeatmapImporter : MonoBehaviour
             UnityEngine.Debug.LogError("Failed to generate beatmap JSON file.");
         }
         
-        // Clear temp paths
+        // Clear temp paths and preview state
         tempMidiPath = null;
         tempAudioPath = null;
+        markedDrumStartTime = -1f;
     }
     
     IEnumerator RunPythonParser(string inputPath, string outputPath, float drumStartOffset)

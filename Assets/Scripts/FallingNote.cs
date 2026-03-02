@@ -9,18 +9,28 @@ public class FallingNote : MonoBehaviour
     private GameObject _drumMesh;
     private bool _hasArrived;
     private float _hitTime;
+    private int _lane;
     private Color _emissionColor = Color.white;
+    private bool _isHit = false; // Track if this note has been hit
     
-    // Public property for accessing hit time (used for seeking)
+    // Public properties for accessing data (used for hit detection and seeking)
     public float HitTime => _hitTime;
+    public int Lane => _lane;
+    public bool IsHit => _isHit;
+    
+    public void MarkAsHit()
+    {
+        _isHit = true;
+    }
 
-    public void Initialize(Vector3 target, float duration, GameObject drumMesh, float hitTime, Color emissionColor)
+    public void Initialize(Vector3 target, float duration, GameObject drumMesh, float hitTime, Color emissionColor, int lane)
     {
         _startPos = transform.position;
         _endPos = target;
         _fallDuration = duration;
         _drumMesh = drumMesh;
         _hitTime = hitTime;
+        _lane = lane;
         _emissionColor = emissionColor;
         _elapsed = 0f;
     }

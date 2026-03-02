@@ -170,7 +170,8 @@ void SpawnNote(NoteData noteData)
         fallDuration, // duration
         laneHitTargets[noteData.lane].gameObject, // drum mesh
         noteData.time, // hit time
-        emissionColor // emission color
+        emissionColor, // emission color
+        noteData.lane // lane number
     );
 
     Debug.Log($"Spawned note lane {noteData.lane} at {laneSpawnPoints[noteData.lane].position}");

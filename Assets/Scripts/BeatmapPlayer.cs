@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Networking;
+using TMPro;
 using System;
 using System.Collections;
 
@@ -11,10 +12,19 @@ public class BeatmapPlayer : MonoBehaviour
     [SerializeField] private Slider volumeSlider;
     [SerializeField][Range(0f, 1f)] private float defaultVolume = 1.0f;
     
+    [Header("BPM Control")]
+    [SerializeField] private TMP_InputField bpmInputField;
+    [SerializeField] private Button resetBpmButton; // Optional: Reset to original BPM
+    [SerializeField] private TMP_Text currentBpmText; // Optional: Display current BPM
+    [SerializeField] private float minBpmPercent = 25f; // Minimum % of original BPM
+    [SerializeField] private float maxBpmPercent = 200f; // Maximum % of original BPM
+    
     [Header("Metronome")]
     [SerializeField] private Button metronomeButton;
+    [SerializeField] private GameObject speedPanel; // Panel shown when metronome is toggled
     [SerializeField] private AudioClip metronomeClickSound;
     [SerializeField] private AudioSource metronomeAudioSource;
+    [SerializeField] private Slider metronomeVolumeSlider; // Slider to control metronome volume
     [SerializeField][Range(0f, 1f)] private float metronomeVolume = 0.5f;
     [SerializeField] private Color metronomeActiveColor = Color.green;
     [SerializeField] private Color metronomeInactiveColor = Color.white;
@@ -27,6 +37,9 @@ public class BeatmapPlayer : MonoBehaviour
     private bool metronomeEnabled = false;
     private float nextBeatTime = 0f;
     private float beatInterval = 0f;
+    private float currentSpeed = 1.0f;
+    private float originalBpm = 120f; // Store original BPM from beatmap
+    private float currentBpm = 120f;  // Current BPM (modified by user)
     
     // Events
     public event Action<BeatmapData> OnBeatmapLoaded;
@@ -34,11 +47,13 @@ public class BeatmapPlayer : MonoBehaviour
     public event Action OnPlaybackStarted;
     public event Action OnPlaybackPaused;
     public event Action OnPlaybackStopped;
+    public event Action<float> OnSpeedChanged; // Notifies listeners when speed changes
     
     // Properties
     public BeatmapData CurrentBeatmap => currentBeatmap;
     public bool IsLoaded => isLoaded;
     public bool IsPlaying => audioSource != null && audioSource.isPlaying;
+    public float CurrentSpeed => currentSpeed;
     public float CurrentTime 
     {
         get
@@ -89,8 +104,10 @@ public class BeatmapPlayer : MonoBehaviour
             audioSource.playOnAwake = false;
         }
         
-        // Set initial volume
+        // Set initial volume and speed
         audioSource.volume = defaultVolume;
+        currentSpeed = 1.0f;
+        audioSource.pitch = currentSpeed;
         
         // Create metronome audio source if not assigned
         if (metronomeAudioSource == null)
@@ -100,6 +117,12 @@ public class BeatmapPlayer : MonoBehaviour
             metronomeAudioSource = metronomeObj.AddComponent<AudioSource>();
             metronomeAudioSource.playOnAwake = false;
             metronomeAudioSource.volume = metronomeVolume;
+        }
+        
+        // Hide speed panel initially
+        if (speedPanel != null)
+        {
+            speedPanel.SetActive(false);
         }
     }
     
@@ -112,6 +135,27 @@ public class BeatmapPlayer : MonoBehaviour
             volumeSlider.maxValue = 1f;
             volumeSlider.value = defaultVolume;
             volumeSlider.onValueChanged.AddListener(SetVolume);
+        }
+        
+        // Setup BPM input field
+        if (bpmInputField != null)
+        {
+            bpmInputField.onEndEdit.AddListener(OnBpmInputChanged);
+        }
+        
+        // Setup reset BPM button
+        if (resetBpmButton != null)
+        {
+            resetBpmButton.onClick.AddListener(ResetBpm);
+        }
+        
+        // Setup metronome volume slider
+        if (metronomeVolumeSlider != null)
+        {
+            metronomeVolumeSlider.minValue = 0f;
+            metronomeVolumeSlider.maxValue = 1f;
+            metronomeVolumeSlider.value = metronomeVolume;
+            metronomeVolumeSlider.onValueChanged.AddListener(SetMetronomeVolume);
         }
         
         // Setup metronome button
@@ -372,7 +416,17 @@ public class BeatmapPlayer : MonoBehaviour
             Debug.Log("[BeatmapPlayer] Metronome disabled");
         }
         
-        UpdateMetronomeButtonVisual();
+        UpdateMetronomeButtonVisual();        
+        // Toggle speed panel visibility
+        if (speedPanel != null)
+        {
+            speedPanel.SetActive(metronomeEnabled);
+        }        
+        // Toggle speed panel visibility
+        if (speedPanel != null)
+        {
+            speedPanel.SetActive(metronomeEnabled);
+        }
     }
     
     void InitializeMetronome()
@@ -384,21 +438,34 @@ public class BeatmapPlayer : MonoBehaviour
         }
         
         // Get BPM from beatmap metadata
-        float bpm = currentBeatmap.metadata.bpm_avg;
-        if (bpm <= 0)
+        originalBpm = currentBeatmap.metadata.bpm_avg;
+        if (originalBpm <= 0)
         {
-            bpm = 120f; // Default fallback
-            Debug.LogWarning($"[BeatmapPlayer] Invalid BPM, using default: {bpm}");
+            originalBpm = 120f; // Default fallback
+            Debug.LogWarning($"[BeatmapPlayer] Invalid BPM, using default: {originalBpm}");
         }
         
+        // Start with original BPM
+        currentBpm = originalBpm;
+        currentSpeed = 1.0f;
+        
+        // Update BPM input field
+        if (bpmInputField != null)
+        {
+            bpmInputField.SetTextWithoutNotify(currentBpm.ToString("F0"));
+        }
+        
+        // Update BPM display text
+        UpdateBpmDisplay();
+        
         // Calculate beat interval in seconds
-        beatInterval = 60f / bpm;
+        beatInterval = 60f / currentBpm;
         
         // Sync next beat to current time
         float currentTime = CurrentTime;
         nextBeatTime = Mathf.Ceil(currentTime / beatInterval) * beatInterval;
         
-        Debug.Log($"[BeatmapPlayer] Metronome initialized: BPM={bpm}, Interval={beatInterval:F3}s");
+        Debug.Log($"[BeatmapPlayer] Metronome initialized: Original BPM={originalBpm}, Current BPM={currentBpm}, Interval={beatInterval:F3}s");
     }
     
     void PlayMetronomeClick()
@@ -427,4 +494,81 @@ public class BeatmapPlayer : MonoBehaviour
             metronomeAudioSource.volume = metronomeVolume;
         }
     }
+    
+    // === BPM CONTROL ===
+    
+    void OnBpmInputChanged(string text)
+    {
+        if (float.TryParse(text, out float newBpm))
+        {
+            SetBpm(newBpm);
+        }
+        else
+        {
+            // Invalid input, reset to current BPM
+            if (bpmInputField != null)
+            {
+                bpmInputField.SetTextWithoutNotify(currentBpm.ToString("F0"));
+            }
+            Debug.LogWarning($"[BeatmapPlayer] Invalid BPM input: {text}");
+        }
+    }
+    
+    public void SetBpm(float newBpm)
+    {
+        // Clamp BPM to percentage range of original BPM
+        float minBpm = originalBpm * (minBpmPercent / 100f);
+        float maxBpm = originalBpm * (maxBpmPercent / 100f);
+        newBpm = Mathf.Clamp(newBpm, minBpm, maxBpm);
+        
+        currentBpm = newBpm;
+        
+        // Calculate speed multiplier
+        currentSpeed = currentBpm / originalBpm;
+        
+        // Update audio pitch
+        if (audioSource != null)
+        {
+            audioSource.pitch = currentSpeed;
+        }
+        
+        // Update metronome interval
+        beatInterval = 60f / currentBpm;
+        
+        // Resync metronome to current time
+        if (IsPlaying)
+        {
+            float currentTime = CurrentTime;
+            nextBeatTime = Mathf.Ceil(currentTime / beatInterval) * beatInterval;
+        }
+        
+        // Update UI
+        if (bpmInputField != null)
+        {
+            bpmInputField.SetTextWithoutNotify(currentBpm.ToString("F0"));
+        }
+        UpdateBpmDisplay();
+        
+        // Notify listeners (NoteSpawner needs to adjust fall duration)
+        OnSpeedChanged?.Invoke(currentSpeed);
+        
+        Debug.Log($"[BeatmapPlayer] BPM changed to {currentBpm:F0} (speed: {currentSpeed:F2}x, interval: {beatInterval:F3}s)");
+    }
+    
+    public void ResetBpm()
+    {
+        SetBpm(originalBpm);
+        Debug.Log($"[BeatmapPlayer] BPM reset to original: {originalBpm:F0}");
+    }
+    
+    void UpdateBpmDisplay()
+    {
+        if (currentBpmText != null)
+        {
+            currentBpmText.text = $"{currentBpm:F0} BPM ({currentSpeed:F2}x)";
+        }
+    }
+    
+    public float GetOriginalBpm() => originalBpm;
+    public float GetCurrentBpm() => currentBpm;
 }

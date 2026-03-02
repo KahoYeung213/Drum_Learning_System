@@ -53,12 +53,13 @@ public class NoteSpawner : MonoBehaviour
     
     [Header("Spawn Settings")]
     [SerializeField] private float spawnHeight = 100f; // Height above hitzone
-    [SerializeField] private float fallDuration = 2f; // How long notes take to fall
+    [SerializeField] private float fallDuration = 2f; // How long notes take to fall (at 1x speed)
     
     private List<BeatmapNote> notesToSpawn = new List<BeatmapNote>();
     private int nextNoteIndex = 0;
     private float playbackStartTime = 0f;
     private bool isPlaying = false;
+    private float currentSpeedMultiplier = 1.0f; // Track current speed for note falling
     
     // Seeking support
     private List<FallingNote> activeNotes = new List<FallingNote>();
@@ -91,6 +92,10 @@ public class NoteSpawner : MonoBehaviour
             beatmapPlayer.OnPlaybackStarted += OnPlaybackStarted;
             beatmapPlayer.OnPlaybackPaused += OnPlaybackPaused;
             beatmapPlayer.OnPlaybackStopped += OnPlaybackStopped;
+            beatmapPlayer.OnSpeedChanged += OnSpeedChanged;
+            
+            // Get initial speed
+            currentSpeedMultiplier = beatmapPlayer.CurrentSpeed;
         }
         
         ValidateSetup();
@@ -143,6 +148,7 @@ public class NoteSpawner : MonoBehaviour
             beatmapPlayer.OnPlaybackStarted -= OnPlaybackStarted;
             beatmapPlayer.OnPlaybackPaused -= OnPlaybackPaused;
             beatmapPlayer.OnPlaybackStopped -= OnPlaybackStopped;
+            beatmapPlayer.OnSpeedChanged -= OnSpeedChanged;
         }
     }
     
@@ -247,6 +253,15 @@ public class NoteSpawner : MonoBehaviour
         
         // Clean up any remaining notes
         CleanupAllNotes();
+    }
+    
+    void OnSpeedChanged(float newSpeed)
+    {
+        currentSpeedMultiplier = newSpeed;
+        Debug.Log($"[NoteSpawner] Speed changed to {newSpeed:F2}x - notes will fall faster/slower");
+        
+        // Note: Active notes keep their original fall duration
+        // Only newly spawned notes will use the new speed
     }
     
     void Update()
@@ -400,15 +415,19 @@ public class NoteSpawner : MonoBehaviour
         Color emissionColor = GetEmissionColorForLane(noteData.lane);
         
         // Initialize the falling note
-        float fallTime = noteData.time - beatmapPlayer.CurrentTime;
-        if (fallTime < 0.1f) fallTime = 0.1f; // Minimum fall time
+        // Calculate fall time based on when the note should hit and current speed
+        // At 2x speed, notes should fall twice as fast (visually)
+        float beatmapFallTime = noteData.time - beatmapPlayer.CurrentTime;
+        float realTimeFallDuration = beatmapFallTime / currentSpeedMultiplier;
         
-        fallingNote.Initialize(hitzone.position, fallTime, hitzone.gameObject, noteData.time, emissionColor);
+        if (realTimeFallDuration < 0.1f) realTimeFallDuration = 0.1f; // Minimum fall time
+        
+        fallingNote.Initialize(hitzone.position, realTimeFallDuration, hitzone.gameObject, noteData.time, emissionColor, noteData.lane);
         
         // Track this note
         activeNotes.Add(fallingNote);
         
-        Debug.Log($"[NoteSpawner] Spawned note at lane {noteData.lane} {midiInfo}, position {spawnPosition}, will hit at {noteData.time:F2}s");
+        Debug.Log($"[NoteSpawner] Spawned note at lane {noteData.lane} {midiInfo}, position {spawnPosition}, will hit at {noteData.time:F2}s (fall duration: {realTimeFallDuration:F2}s at {currentSpeedMultiplier:F2}x speed)");
     }
     
     void CleanupAllNotes()
@@ -526,5 +545,36 @@ public class NoteSpawner : MonoBehaviour
         }
         
         return Color.white; // Fallback
+    }
+    
+    // === HIT DETECTION SUPPORT ===
+    
+    /// <summary>
+    /// Get all active notes in a specific lane (for hit detection)
+    /// Excludes notes that have already been marked as hit
+    /// </summary>
+    public List<FallingNote> GetActiveNotesForLane(int lane)
+    {
+        return activeNotes.Where(note => note != null && note.Lane == lane && !note.IsHit).ToList();
+    }
+    
+    /// <summary>
+    /// Destroy a specific note (when it's been hit)
+    /// </summary>
+    public void DestroyNote(FallingNote note)
+    {
+        if (note != null)
+        {
+            activeNotes.Remove(note);
+            Destroy(note.gameObject);
+        }
+    }
+    
+    /// <summary>
+    /// Get all currently active notes
+    /// </summary>
+    public List<FallingNote> GetAllActiveNotes()
+    {
+        return new List<FallingNote>(activeNotes);
     }
 }
