@@ -29,6 +29,9 @@ public class BeatmapPlayer : MonoBehaviour
     [SerializeField] private Color metronomeActiveColor = Color.green;
     [SerializeField] private Color metronomeInactiveColor = Color.white;
     
+    [Header("Mode Management")]
+    [SerializeField] private GameModeManager gameModeManager; // Optional: manages learning vs gameplay mode
+    
     [Header("Timing Settings")]
     [SerializeField] private float audioOffset = 3.0f; // Countdown time built into beatmap
     
@@ -363,35 +366,45 @@ public class BeatmapPlayer : MonoBehaviour
     
     public void Seek(float time)
     {
-        if (!isLoaded)
+        if (!isLoaded || audioSource == null || audioSource.clip == null)
         {
-            Debug.LogWarning("No beatmap loaded!");
+            Debug.LogWarning("[BeatmapPlayer] Cannot seek - no beatmap loaded or audio clip missing!");
             return;
         }
         
+        // Clamp to valid duration range
         time = Mathf.Clamp(time, 0f, Duration);
         
         // Check if this is a snipped beatmap
         bool audioHasCountdown = currentBeatmap?.metadata?.audio_includes_countdown ?? false;
         
+        float audioTime = time;
+        
         if (!audioHasCountdown)
         {
-            // Imported: subtract 3 from time since CurrentTime has +3 offset
-            time -= audioOffset;
+            // Imported: subtract audioOffset from time since CurrentTime has +audioOffset
+            audioTime = time - audioOffset;
         }
         
-        audioSource.time = time;
+        // Clamp audio time to actual clip length (with small epsilon to avoid edge cases)
+        float maxAudioTime = audioSource.clip.length - 0.01f;
+        audioTime = Mathf.Clamp(audioTime, 0f, maxAudioTime);
         
-        Debug.Log($"Seeked to: {time:F2}s");
+        audioSource.time = audioTime;
+        
+        Debug.Log($"[BeatmapPlayer] Seeked to beatmap time: {time:F2}s (audio time: {audioTime:F2}s)");
     }
     
     public void SeekNormalized(float normalizedTime)
     {
         if (!isLoaded)
         {
-            Debug.LogWarning("No beatmap loaded!");
+            Debug.LogWarning("[BeatmapPlayer] No beatmap loaded!");
             return;
         }
+        
+        // Clamp normalized time to [0, 1] to avoid invalid seeks
+        normalizedTime = Mathf.Clamp01(normalizedTime);
         
         float time = normalizedTime * Duration;
         Seek(time);
@@ -416,16 +429,25 @@ public class BeatmapPlayer : MonoBehaviour
             Debug.Log("[BeatmapPlayer] Metronome disabled");
         }
         
-        UpdateMetronomeButtonVisual();        
-        // Toggle speed panel visibility
+        UpdateMetronomeButtonVisual();
+        
+        // Toggle speed panel visibility (only in Learning mode)
+        UpdateSpeedPanelVisibility();
+    }
+    
+    /// <summary>
+    /// Update speed panel visibility based on metronome state and game mode
+    /// Speed panel only visible when: metronome is ON AND in Learning mode (or no mode manager)
+    /// </summary>
+    public void UpdateSpeedPanelVisibility()
+    {
         if (speedPanel != null)
         {
-            speedPanel.SetActive(metronomeEnabled);
-        }        
-        // Toggle speed panel visibility
-        if (speedPanel != null)
-        {
-            speedPanel.SetActive(metronomeEnabled);
+            // Check if we're in learning mode (or no mode manager exists)
+            bool inLearningMode = gameModeManager == null || gameModeManager.IsLearningMode;
+            
+            // Speed panel visible only if metronome enabled AND in learning mode
+            speedPanel.SetActive(metronomeEnabled && inLearningMode);
         }
     }
     

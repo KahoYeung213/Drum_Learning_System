@@ -13,8 +13,20 @@ public class NoteSpawner : MonoBehaviour
     [SerializeField] private Transform[] hitzones; // Assign your hitzone GameObjects here
     [SerializeField] private bool autoSyncWithMidiHit = true; // Automatically build from MidiHit
     
-    [Header("MIDI to Lane Mapping")]
-    [Tooltip("Maps MIDI note numbers to lane indices. MUST match Python script's PITCH_TO_LANE dictionary!")]
+    [Header("Primary MIDI Note Per Lane (for auto-sync)")]
+    [Tooltip("Defines which MIDI note to look up in MidiHit for each lane. Array index = lane number.")]
+    [SerializeField] private int[] primaryMidiNotePerLane = new int[]
+    {
+        36, // Lane 0: Bass Drum
+        49, // Lane 1: Crash
+        42, // Lane 2: Hi-Hat (primary - even if you have 44, 46, etc)
+        38, // Lane 3: Snare
+        48, // Lane 4: Tom 1
+        45, // Lane 5: Tom 2
+        43, // Lane 6: Tom 3 (Floor Tom)
+        51  // Lane 7: Ride
+    }
+    ;
     [SerializeField] private MidiToLaneMapping[] midiToLaneMap = new MidiToLaneMapping[]
     {
         // This MUST match the PITCH_TO_LANE dict in music_xml_to_beatmap.py
@@ -109,35 +121,38 @@ public class NoteSpawner : MonoBehaviour
             return;
         }
         
-        // Find the maximum lane number to size the array
-        int maxLane = 0;
-        foreach (var mapping in midiToLaneMap)
+        if (primaryMidiNotePerLane == null || primaryMidiNotePerLane.Length == 0)
         {
-            if (mapping.lane > maxLane) maxLane = mapping.lane;
+            Debug.LogError("[NoteSpawner] primaryMidiNotePerLane array is empty! Configure it in Inspector.");
+            return;
         }
         
-        // Create hitzones array
-        hitzones = new Transform[maxLane + 1];
+        // Create hitzones array based on configured primary notes
+        hitzones = new Transform[primaryMidiNotePerLane.Length];
         
-        // Map each MidiHit mapping to the corresponding lane
-        foreach (var midiMapping in midiHit.mappings)
+        // For each lane, find its primary MIDI note in MidiHit mappings
+        for (int lane = 0; lane < primaryMidiNotePerLane.Length; lane++)
         {
-            // Find which lane this MIDI note corresponds to
-            foreach (var laneMapping in midiToLaneMap)
+            int primaryMidiNote = primaryMidiNotePerLane[lane];
+            
+            // Find this MIDI note in MidiHit mappings
+            foreach (var midiMapping in midiHit.mappings)
             {
-                if (laneMapping.midiNote == midiMapping.midiNote)
+                if (midiMapping.midiNote == primaryMidiNote && midiMapping.hitZone != null)
                 {
-                    if (midiMapping.hitZone != null)
-                    {
-                        hitzones[laneMapping.lane] = midiMapping.hitZone.transform;
-                        Debug.Log($"[NoteSpawner] Mapped MIDI {midiMapping.midiNote} → Lane {laneMapping.lane} → {midiMapping.hitZone.name}");
-                    }
-                    break;
+                    hitzones[lane] = midiMapping.hitZone.transform;
+                    Debug.Log($"[NoteSpawner] Lane {lane} → Primary MIDI {primaryMidiNote} → {midiMapping.hitZone.name}");
+                    break; // Found the primary note for this lane
                 }
+            }
+            
+            if (hitzones[lane] == null)
+            {
+                Debug.LogWarning($"[NoteSpawner] Lane {lane}: Primary MIDI note {primaryMidiNote} not found in MidiHit mappings!");
             }
         }
         
-        Debug.Log($"[NoteSpawner] Auto-synced {hitzones.Length} hitzones from MidiHit");
+        Debug.Log($"[NoteSpawner] Auto-synced {hitzones.Length} hitzones from MidiHit using configured primary notes");
     }
     
     void OnDestroy()
