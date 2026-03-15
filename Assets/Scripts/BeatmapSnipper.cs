@@ -450,6 +450,18 @@ public class BeatmapSnipper : MonoBehaviour
             yield break;
         }
         
+        bool originalHasCountdown = originalBeatmap?.metadata?.audio_includes_countdown ?? false;
+
+        // Rebase note timing against the actual start of the audio that will be written.
+        // Imported beatmaps use CurrentTime = audio time + countdownDuration, so if the snip
+        // starts inside that ready-timer window we cannot trim from a negative audio position.
+        float timeShift = originalHasCountdown
+            ? startTime - countdownDuration
+            : Mathf.Max(0f, startTime - countdownDuration);
+        float snippedLengthSeconds = originalHasCountdown
+            ? (endTime - startTime) + countdownDuration
+            : endTime - Mathf.Max(0f, startTime - countdownDuration);
+
         // Filter notes within the time range and adjust their timing
         List<BeatmapNote> snippedNotes = new List<BeatmapNote>();
         
@@ -460,9 +472,9 @@ public class BeatmapSnipper : MonoBehaviour
                 BeatmapNote newNote = new BeatmapNote
                 {
                     lane = note.lane,
-                    // Adjust timing: subtract startTime, then add countdown duration
-                    time = (note.time - startTime) + countdownDuration,
-                    spawnTime = (note.spawnTime - startTime) + countdownDuration,
+                    // Align note timing with the actual start of the new audio clip.
+                    time = note.time - timeShift,
+                    spawnTime = note.spawnTime - timeShift,
                     velocity = note.velocity
                 };
                 
@@ -497,17 +509,17 @@ public class BeatmapSnipper : MonoBehaviour
                 bpm_max = originalBeatmap.metadata?.bpm_max ?? 120f,
                 bpm_avg = originalBeatmap.metadata?.bpm_avg ?? 120f,
                 time_signatures = originalBeatmap.metadata?.time_signatures ?? new List<string>(),
-                length_seconds = (endTime - startTime) + countdownDuration, // Include countdown
+                length_seconds = snippedLengthSeconds,
                 events_count = snippedNotes.Count,
                 lanes_used = snippedNotes.Select(n => n.lane).Distinct().OrderBy(l => l).ToList(),
                 events_per_second = snippedNotes.Count / (endTime - startTime),
-                drum_start_offset = 0f, // Trimmed audio already has countdown built in, play from start
+                drum_start_offset = 0f, // Audio has countdown built-in, play from the start (don't skip)
                 audio_includes_countdown = true // Snipped audio has countdown silence built in
             }
         };
         
         // Save the snipped beatmap (async)
-        yield return StartCoroutine(SaveSnippedBeatmapAsync(snippedBeatmap, startTime, endTime));
+        yield return StartCoroutine(SaveSnippedBeatmapAsync(snippedBeatmap, originalBeatmap, startTime, endTime));
         
         // Re-enable confirm button and close snip mode
         if (confirmSnipButton != null)
@@ -516,12 +528,32 @@ public class BeatmapSnipper : MonoBehaviour
         OnCancelSnip();
     }
     
-    IEnumerator SaveSnippedBeatmapAsync(BeatmapData beatmap, float startTime, float endTime)
+    IEnumerator SaveSnippedBeatmapAsync(BeatmapData beatmap, BeatmapData originalBeatmap, float beatmapStartTime, float beatmapEndTime)
     {
         string beatmapsDirectory = "";
         string beatmapFolder = "";
         string newAudioPath = "";
         string newMidiPath = "";
+        
+        // Calculate audio file positions from CurrentTime (timeline positions)
+        bool originalHasCountdown = originalBeatmap?.metadata?.audio_includes_countdown ?? false;
+        float audioStartTime, audioEndTime;
+        
+        if (originalHasCountdown)
+        {
+            // Original is snipped: CurrentTime = audio time directly
+            audioStartTime = beatmapStartTime;
+            audioEndTime = beatmapEndTime;
+        }
+        else
+        {
+            // Original is imported: CurrentTime = audioSource.time + countdownDuration.
+            // Clamp start to 0 because audio cannot begin before the file starts.
+            audioStartTime = Mathf.Max(0f, beatmapStartTime - countdownDuration);
+            audioEndTime = Mathf.Max(audioStartTime, beatmapEndTime - countdownDuration);
+            
+            UnityEngine.Debug.Log($"[BeatmapSnipper] Converting CurrentTime [{beatmapStartTime:F2}-{beatmapEndTime:F2}] to audio positions [{audioStartTime:F2}-{audioEndTime:F2}]");
+        }
         
         try
         {
@@ -557,8 +589,8 @@ public class BeatmapSnipper : MonoBehaviour
             yield return StartCoroutine(TrimAudioWithCountdownAsync(
                 beatmap.audioFilePath,
                 newAudioPath,
-                startTime,
-                endTime,
+                audioStartTime,
+                audioEndTime,
                 countdownDuration,
                 (success) => audioTrimmed = success
             ));
@@ -646,13 +678,14 @@ public class BeatmapSnipper : MonoBehaviour
             string startTimeStr = startTime.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
             string countdownStr = countdown.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
             
-            // Complex filter: generate silence + trim audio + concatenate
-            string audioFilter = $"aevalsrc=0:d={countdownStr}[silence];[0:a]atrim=start={startTimeStr}:duration={duration}[clip];[silence][clip]concat=n=2:v=0:a=1";
+            // Complex filter: generate silence + trim audio + concatenate.
+            // This must use filter_complex because the graph creates and combines multiple audio streams.
+            string audioFilter = $"aevalsrc=0:d={countdownStr}[silence];[0:a]atrim=start={startTimeStr}:duration={duration},asetpts=PTS-STARTPTS[clip];[silence][clip]concat=n=2:v=0:a=1[out]";
             
             processInfo = new ProcessStartInfo
             {
                 FileName = "ffmpeg",
-                Arguments = $"-i \"{inputPath}\" -af \"{audioFilter}\" -y \"{outputPath}\"",
+                Arguments = $"-i \"{inputPath}\" -filter_complex \"{audioFilter}\" -map \"[out]\" -y \"{outputPath}\"",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -690,7 +723,7 @@ public class BeatmapSnipper : MonoBehaviour
             
             if (process.ExitCode == 0)
             {
-                UnityEngine.Debug.Log($"[BeatmapSnipper] Audio trimmed successfully: {countdown}s silence + {duration}s audio");
+                UnityEngine.Debug.Log($"[BeatmapSnipper] Audio trimmed: {countdown}s countdown + audio segment from {startTime:F3}s to {endTime:F3}s ({duration}s)");
                 callback?.Invoke(true);
             }
             else

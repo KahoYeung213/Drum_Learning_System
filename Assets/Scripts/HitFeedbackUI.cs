@@ -60,9 +60,9 @@ public class HitFeedbackUI : MonoBehaviour
         if (hitFeedbackText != null)
         {
             float timing = result.timingError * 1000f;
-            string earlyLate = result.timingError > 0 ? "Early" : "Late";
+            string timingLabel = GetTimingLabel(result);
             
-            string feedback = $"{result.grade}\n{Mathf.Abs(timing):F0}ms {earlyLate}";
+            string feedback = $"{timingLabel}\n{Mathf.Abs(timing):F0}ms";
             
             Color color = GetGradeColor(result.grade);
             
@@ -70,6 +70,23 @@ public class HitFeedbackUI : MonoBehaviour
                 StopCoroutine(feedbackCoroutine);
             
             feedbackCoroutine = StartCoroutine(ShowFeedback(feedback, color));
+        }
+    }
+
+    string GetTimingLabel(HitResult result)
+    {
+        bool isEarly = result.timingError > 0f;
+
+        switch (result.grade)
+        {
+            case HitGrade.OK:
+            case HitGrade.Miss:
+                return isEarly ? "Super Early" : "Super Late";
+            case HitGrade.Perfect:
+                return "On Time";
+            case HitGrade.Good:
+            default:
+                return isEarly ? "Early" : "Late";
         }
     }
     
@@ -94,10 +111,8 @@ public class HitFeedbackUI : MonoBehaviour
         
         if (statsText != null)
         {
-            statsText.text = $"Perfect: {score.perfectHits}\n" +
-                           $"Good: {score.goodHits}\n" +
-                           $"OK: {score.okHits}\n" +
-                           $"Miss: {score.missHits}\n" +
+            statsText.text = $"Perfect: {score.perfectHits}\tGood: {score.goodHits}\n" +
+                           $"OK: {score.okHits}\t\tMiss: {score.missHits}\n" +
                            $"Max Combo: {score.maxCombo}";
         }
     }

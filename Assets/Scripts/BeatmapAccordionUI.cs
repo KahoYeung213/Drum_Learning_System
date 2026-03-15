@@ -20,10 +20,12 @@ public class BeatmapAccordionUI : MonoBehaviour
     [Header("Play Button Configuration")]
     [SerializeField] private Vector2 playButtonSize = new Vector2(60f, 30f); // Width x Height
     [SerializeField] private float playButtonRightOffset = 10f; // Distance from right edge
+    [SerializeField] private Sprite playIcon;
     
     [Header("Delete Button Configuration")]
     [SerializeField] private Vector2 deleteButtonSize = new Vector2(60f, 30f); // Width x Height
     [SerializeField] private float deleteButtonRightOffset = 80f; // Distance from right edge
+    [SerializeField] private Sprite deleteIcon;
     
     private List<GameObject> accordionItems = new List<GameObject>();
     
@@ -181,20 +183,19 @@ public class BeatmapAccordionUI : MonoBehaviour
             
             playButton.onClick.AddListener(() => OnBeatmapSelected(beatmap));
             
-            // Optionally set the button text to "Play"
+            // Set button icon, clearing any text label
+            if (playIcon != null)
+            {
+                Image btnImage = playButton.GetComponent<Image>();
+                if (btnImage != null)
+                    btnImage.sprite = playIcon;
+            }
             TextMeshProUGUI buttonText = playButton.GetComponentInChildren<TextMeshProUGUI>();
             if (buttonText != null)
-            {
-                buttonText.text = "Play";
-            }
-            else
-            {
-                Text legacyText = playButton.GetComponentInChildren<Text>();
-                if (legacyText != null)
-                {
-                    legacyText.text = "Play";
-                }
-            }
+                buttonText.text = string.Empty;
+            Text legacyText = playButton.GetComponentInChildren<Text>();
+            if (legacyText != null)
+                legacyText.text = string.Empty;
         }
         else
         {
@@ -240,21 +241,20 @@ public class BeatmapAccordionUI : MonoBehaviour
             }
             
             deleteButton.onClick.AddListener(() => OnBeatmapDelete(beatmap, item));
-            
-            // Set the button text to "Delete"
+
+            // Set delete icon, clearing any text label
+            if (deleteIcon != null)
+            {
+                Image btnImage = deleteButton.GetComponent<Image>();
+                if (btnImage != null)
+                    btnImage.sprite = deleteIcon;
+            }
             TextMeshProUGUI buttonText = deleteButton.GetComponentInChildren<TextMeshProUGUI>();
             if (buttonText != null)
-            {
-                buttonText.text = "Delete";
-            }
-            else
-            {
-                Text legacyText = deleteButton.GetComponentInChildren<Text>();
-                if (legacyText != null)
-                {
-                    legacyText.text = "Delete";
-                }
-            }
+                buttonText.text = string.Empty;
+            Text legacyText = deleteButton.GetComponentInChildren<Text>();
+            if (legacyText != null)
+                legacyText.text = string.Empty;
         }
         
         // Debug: Check if item was properly added to parent

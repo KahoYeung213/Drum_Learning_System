@@ -43,6 +43,11 @@ public class BeatmapPlayer : MonoBehaviour
     private float currentSpeed = 1.0f;
     private float originalBpm = 120f; // Store original BPM from beatmap
     private float currentBpm = 120f;  // Current BPM (modified by user)
+
+    // Pre-roll (countdown before audio starts when drum offset < audioOffset)
+    private bool isInPreRoll = false;
+    private float preRollStartRealTime = 0f;
+    private Coroutine preRollCoroutine = null;
     
     // Events
     public event Action<BeatmapData> OnBeatmapLoaded;
@@ -55,7 +60,7 @@ public class BeatmapPlayer : MonoBehaviour
     // Properties
     public BeatmapData CurrentBeatmap => currentBeatmap;
     public bool IsLoaded => isLoaded;
-    public bool IsPlaying => audioSource != null && audioSource.isPlaying;
+    public bool IsPlaying => (audioSource != null && audioSource.isPlaying) || isInPreRoll;
     public float CurrentSpeed => currentSpeed;
     public float CurrentTime 
     {
@@ -71,10 +76,16 @@ public class BeatmapPlayer : MonoBehaviour
                 return audioSource.time;
             }
             
-            // Imported: CurrentTime = audio.time + 3
-            // Because we added 3 to all notes, we add 3 to CurrentTime too
-            // offset=13: audio 10→13 = CurrentTime 13→16
-            // offset=0: audio 0→3 = CurrentTime 3→6
+            // During pre-roll: advance a virtual clock from 0 so notes can scroll in
+            // before the audio file actually starts playing.
+            if (isInPreRoll)
+            {
+                return Time.time - preRollStartRealTime;
+            }
+            
+            // Imported: CurrentTime = audio.time + audioOffset
+            // offset=13: audio starts at 10 → CurrentTime starts at 13, notes hit at 16
+            // offset=0:  pre-roll covers 0→3, audio starts at 0 → CurrentTime = 3 (seamless)
             return audioSource.time + audioOffset;
         }
     }
@@ -299,28 +310,46 @@ public class BeatmapPlayer : MonoBehaviour
         if (audioHasCountdown)
         {
             // Snipped beatmap: Play from start (countdown is in the audio file)
+            isInPreRoll = false;
             audioSource.time = 0f;
             audioSource.Play();
             Debug.Log($"[BeatmapPlayer] Playing snipped beatmap from start: {currentBeatmap.title}");
         }
         else
         {
-            // Imported: audio starts at (offset - 3) for ready timer
             float drumOffset = currentBeatmap?.metadata?.drum_start_offset ?? 0f;
             float startPosition = Mathf.Max(0f, drumOffset - audioOffset);
             
-            audioSource.time = startPosition;
-            audioSource.Play();
-            
-            Debug.Log($"[BeatmapPlayer] Playing: {currentBeatmap.title}");
-            Debug.Log($"[BeatmapPlayer] Audio starting at: {startPosition:F1}s");
-            Debug.Log($"[BeatmapPlayer] First note at beatmap time: {drumOffset + audioOffset:F1}s");
-            Debug.Log($"[BeatmapPlayer] Ready timer: {startPosition:F1}s → {drumOffset:F1}s (3 seconds)");
+            if (startPosition == 0f)
+            {
+                // Drum offset is within the countdown window (drumOffset < audioOffset).
+                // Use a pre-roll: advance a virtual clock for audioOffset seconds so notes
+                // can scroll into view, then start the audio at position 0.
+                // CurrentTime runs 0 → audioOffset during the delay, then audio picks up
+                // seamlessly at audioSource.time + audioOffset = 0 + audioOffset.
+                isInPreRoll = true;
+                preRollStartRealTime = Time.time;
+                if (preRollCoroutine != null) StopCoroutine(preRollCoroutine);
+                preRollCoroutine = StartCoroutine(PreRollThenPlay());
+                Debug.Log($"[BeatmapPlayer] Playing: {currentBeatmap.title}");
+                Debug.Log($"[BeatmapPlayer] Pre-roll: {audioOffset:F1}s countdown before audio starts (drumOffset={drumOffset:F1}s)");
+            }
+            else
+            {
+                // drumOffset >= audioOffset: audio can start audioOffset seconds early
+                isInPreRoll = false;
+                audioSource.time = startPosition;
+                audioSource.Play();
+                Debug.Log($"[BeatmapPlayer] Playing: {currentBeatmap.title}");
+                Debug.Log($"[BeatmapPlayer] Audio starting at: {startPosition:F1}s");
+                Debug.Log($"[BeatmapPlayer] First note at beatmap time: {drumOffset + audioOffset:F1}s");
+                Debug.Log($"[BeatmapPlayer] Ready timer: {startPosition:F1}s → {drumOffset:F1}s ({audioOffset:F1} seconds)");
+            }
         }
         
         OnPlaybackStarted?.Invoke();
         
-        if (metronomeEnabled)
+        if (!isInPreRoll && metronomeEnabled)
         {
             InitializeMetronome();
         }
@@ -333,7 +362,15 @@ public class BeatmapPlayer : MonoBehaviour
             Debug.LogWarning("[BeatmapPlayer] No beatmap loaded!");
             return;
         }
-        
+
+        // Cancel any active pre-roll coroutine
+        if (preRollCoroutine != null)
+        {
+            StopCoroutine(preRollCoroutine);
+            preRollCoroutine = null;
+            isInPreRoll = false;
+        }
+
         Debug.Log("[BeatmapPlayer] Paused");
         audioSource.Pause();
         OnPlaybackPaused?.Invoke();
@@ -341,7 +378,15 @@ public class BeatmapPlayer : MonoBehaviour
     
     public void Stop()
     {
-        if (audioSource.isPlaying || audioSource.time > 0)
+        bool wasPreRolling = isInPreRoll;
+        if (preRollCoroutine != null)
+        {
+            StopCoroutine(preRollCoroutine);
+            preRollCoroutine = null;
+            isInPreRoll = false;
+        }
+
+        if (audioSource.isPlaying || audioSource.time > 0 || wasPreRolling)
         {
             audioSource.Stop();
             audioSource.time = 0f;
@@ -354,13 +399,28 @@ public class BeatmapPlayer : MonoBehaviour
     {
         if (!isLoaded) return;
         
-        if (audioSource.isPlaying)
+        if (audioSource.isPlaying || isInPreRoll)
         {
             Pause();
         }
         else
         {
             Play();
+        }
+    }
+
+    private IEnumerator PreRollThenPlay()
+    {
+        yield return new WaitForSeconds(audioOffset);
+        isInPreRoll = false;
+        preRollCoroutine = null;
+        audioSource.time = 0f;
+        audioSource.Play();
+        Debug.Log("[BeatmapPlayer] Pre-roll complete, audio started");
+
+        if (metronomeEnabled)
+        {
+            InitializeMetronome();
         }
     }
     

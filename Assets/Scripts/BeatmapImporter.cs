@@ -1,10 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 using SFB;
 using System;
 using System.IO;
 using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Diagnostics;
 
 public class BeatmapImporter : MonoBehaviour
@@ -12,6 +15,18 @@ public class BeatmapImporter : MonoBehaviour
     [Header("UI References")]
     [SerializeField] private Button importButton;
     [SerializeField] private TMP_InputField drumOffsetInput; // Optional: Input field for drum start offset (legacy)
+
+    [Header("Import Panel UI")]
+    [SerializeField] private GameObject importPanel; // Panel with MIDI/Audio upload boxes
+    [SerializeField] private Button importConfirmButton; // Confirm button inside import panel
+    [SerializeField] private Button importCancelButton; // Cancel button inside import panel
+    [SerializeField] private TMP_Text importLinkText; // Optional TMP link text in import panel
+    [SerializeField] private string fallbackImportLinkUrl = "https://www.onlinesequencer.net/";
+    
+    [Header("Drag and Drop Areas (Optional - Alternative to File Browser)")]
+    [SerializeField] private DragDropFileArea midiDropArea; // Drag-drop area for MIDI files
+    [SerializeField] private DragDropFileArea audioDropArea; // Drag-drop area for audio files
+    [SerializeField] private TMP_Text importStatusText; // Shows which files are ready
     
     [Header("Tap-to-Sync Preview UI")]
     [SerializeField] private GameObject previewPanel; // Panel shown during audio preview
@@ -23,6 +38,29 @@ public class BeatmapImporter : MonoBehaviour
     [SerializeField] private TMP_Text markedTimeText;
     [SerializeField] private TMP_Text instructionText;
     [SerializeField] private Slider audioSeekSlider; // Optional: scrub through audio
+    [SerializeField] private TMP_InputField preciseTimeInput; // Optional: precise marked time edit
+    [SerializeField] private Button preciseTimeDownButton; // Optional: nudge marked time backward
+    [SerializeField] private Button preciseTimeUpButton; // Optional: nudge marked time forward
+    [SerializeField] private float preciseTimeStep = 0.01f;
+
+    [Header("Play/Pause Icons")]
+    [SerializeField] private Sprite playIcon;
+    [SerializeField] private Sprite pauseIcon;
+
+    [Header("Waveform Preview (Optional)")]
+    [SerializeField] private RawImage waveformImage; // Waveform display in drum mark UI
+    [SerializeField] private RectTransform waveformPlayhead; // Vertical line that tracks playback time
+    [SerializeField] private RectTransform waveformMarkedTimeMarker; // Marker for marked drum start position
+    [SerializeField] private int waveformTextureWidth = 1024;
+    [SerializeField] private int waveformTextureHeight = 160;
+    [SerializeField] private Color waveformBackgroundColor = new Color(0.08f, 0.08f, 0.08f, 1f);
+    [SerializeField] private Color waveformColor = new Color(0.25f, 0.85f, 0.75f, 1f);
+    [SerializeField] private bool useRmsForWaveform = true;
+    [SerializeField, Range(0.50f, 1.00f)] private float waveformNormalizationPercentile = 0.95f;
+    [SerializeField, Range(0.10f, 1.00f)] private float waveformHeadroom = 0.85f;
+
+    [Header("Preview Audio")]
+    [SerializeField, Range(0f, 1f)] private float previewAudioVolume = 0.35f;
     
     [Header("Beatmap Settings")]
     [SerializeField] private float spawnLeadTime = 2.0f;
@@ -34,10 +72,16 @@ public class BeatmapImporter : MonoBehaviour
     private string tempMidiPath;
     private string tempAudioPath;
     
+    // Drag-drop selected files
+    private string selectedMidiPath = null;
+    private string selectedAudioPath = null;
+    
     // Preview state
     private AudioSource previewAudioSource;
     private float markedDrumStartTime = -1f;
     private bool isPreviewMode = false;
+    private Texture2D waveformTexture;
+    private WaveformSeekArea waveformSeekArea;
     
     public event Action<BeatmapData> OnBeatmapImported;
     
@@ -56,6 +100,18 @@ public class BeatmapImporter : MonoBehaviour
         if (importButton != null)
         {
             importButton.onClick.AddListener(OnImportButtonClicked);
+            importButton.interactable = true;
+        }
+
+        if (importConfirmButton != null)
+            importConfirmButton.onClick.AddListener(OnImportConfirmClicked);
+
+        if (importCancelButton != null)
+            importCancelButton.onClick.AddListener(OnImportCancelClicked);
+
+        if (importPanel != null)
+        {
+            importPanel.SetActive(false);
         }
         
         // Set up preview UI
@@ -63,12 +119,30 @@ public class BeatmapImporter : MonoBehaviour
         {
             previewPanel.SetActive(false);
         }
+
+        SetupImportLinkHandling();
         
         // Create preview audio source
         GameObject audioObj = new GameObject("PreviewAudioSource");
         audioObj.transform.SetParent(transform);
         previewAudioSource = audioObj.AddComponent<AudioSource>();
         previewAudioSource.playOnAwake = false;
+        previewAudioSource.volume = previewAudioVolume;
+        
+        // Connect drag-drop areas
+        if (midiDropArea != null)
+        {
+            midiDropArea.SetFileType(FileType.MIDI);
+            midiDropArea.OnFileSelected += OnMidiFileSelected;
+        }
+        
+        if (audioDropArea != null)
+        {
+            audioDropArea.SetFileType(FileType.Audio);
+            audioDropArea.OnFileSelected += OnAudioFileSelected;
+        }
+        
+        UpdateImportStatus();
         
         // Connect preview UI buttons
         if (playPauseButton != null)
@@ -81,31 +155,72 @@ public class BeatmapImporter : MonoBehaviour
             cancelButton.onClick.AddListener(OnCancelPreview);
         if (audioSeekSlider != null)
             audioSeekSlider.onValueChanged.AddListener(OnSeekSliderChanged);
+        if (preciseTimeInput != null)
+            preciseTimeInput.onEndEdit.AddListener(OnPreciseTimeInputEndEdit);
+        if (preciseTimeDownButton != null)
+            preciseTimeDownButton.onClick.AddListener(OnPreciseTimeStepDown);
+        if (preciseTimeUpButton != null)
+            preciseTimeUpButton.onClick.AddListener(OnPreciseTimeStepUp);
+
+        SetupWaveformSeekArea();
     }
     
     void OnImportButtonClicked()
     {
-        UnityEngine.Debug.LogWarning("[BeatmapImporter] Import button clicked - Opening file browser...");
-        
-        // First, select MIDI file
-        var midiExtensions = new[] {
-            new ExtensionFilter("MIDI/XML Files", "mid", "midi", "xml", "musicxml"),
-            new ExtensionFilter("All Files", "*")
-        };
-        
-        StandaloneFileBrowser.OpenFilePanelAsync(
-            "Select MIDI/MusicXML File", 
-            "", 
-            midiExtensions, 
-            false,
-            (string[] paths) => {
-                if (paths.Length > 0 && !string.IsNullOrEmpty(paths[0]))
-                {
-                    tempMidiPath = paths[0];
-                    SelectAudioFile();
-                }
-            }
-        );
+        OpenImportPanel();
+    }
+
+    void OpenImportPanel()
+    {
+        if (importPanel == null)
+        {
+            UnityEngine.Debug.LogWarning("[BeatmapImporter] Import panel is not assigned.");
+            return;
+        }
+
+        importPanel.SetActive(true);
+        UpdateImportStatus();
+    }
+
+    void OnImportConfirmClicked()
+    {
+        if (string.IsNullOrEmpty(selectedMidiPath) || string.IsNullOrEmpty(selectedAudioPath))
+        {
+            UnityEngine.Debug.LogWarning("[BeatmapImporter] Please select both MIDI and audio files before confirming.");
+            UpdateImportStatus();
+            return;
+        }
+
+        UnityEngine.Debug.Log("[BeatmapImporter] Starting import with panel-selected files");
+        UnityEngine.Debug.Log($"[BeatmapImporter] MIDI: {selectedMidiPath}");
+        UnityEngine.Debug.Log($"[BeatmapImporter] Audio: {selectedAudioPath}");
+
+        if (importPanel != null)
+            importPanel.SetActive(false);
+
+        StartCoroutine(ProcessImportWithDragDropFiles(selectedMidiPath, selectedAudioPath));
+    }
+
+    void OnImportCancelClicked()
+    {
+        if (importPanel != null)
+            importPanel.SetActive(false);
+
+        ResetDragDropSelection();
+        UnityEngine.Debug.Log("[BeatmapImporter] Import panel closed.");
+    }
+
+    void SetupImportLinkHandling()
+    {
+        if (importLinkText == null) return;
+
+        var linkHandler = importLinkText.GetComponent<ImportPanelLinkHandler>();
+        if (linkHandler == null)
+        {
+            linkHandler = importLinkText.gameObject.AddComponent<ImportPanelLinkHandler>();
+        }
+
+        linkHandler.Initialize(importLinkText, fallbackImportLinkUrl);
     }
     
     void SelectAudioFile()
@@ -155,6 +270,7 @@ public class BeatmapImporter : MonoBehaviour
             
             AudioClip clip = UnityEngine.Networking.DownloadHandlerAudioClip.GetContent(www);
             previewAudioSource.clip = clip;
+            BuildWaveformTexture(clip);
             
             // Enter preview mode
             EnterPreviewMode();
@@ -165,11 +281,20 @@ public class BeatmapImporter : MonoBehaviour
     {
         isPreviewMode = true;
         markedDrumStartTime = -1f;
+
+        if (previewAudioSource != null)
+        {
+            previewAudioSource.volume = previewAudioVolume;
+        }
         
         if (previewPanel != null)
         {
             previewPanel.SetActive(true);
         }
+
+        RefreshPreciseTimeInput();
+        UpdateMarkedTimeMarker();
+        UpdateWaveformPlayhead();
         
         UpdatePreviewUI();
         
@@ -205,6 +330,12 @@ public class BeatmapImporter : MonoBehaviour
         if (previewAudioSource != null && previewAudioSource.isPlaying)
         {
             previewAudioSource.Stop();
+        }
+
+        if (waveformTexture != null)
+        {
+            Destroy(waveformTexture);
+            waveformTexture = null;
         }
     }
     
@@ -246,14 +377,19 @@ public class BeatmapImporter : MonoBehaviour
             }
         }
         
-        // Update play/pause button text
+        // Update play/pause button icon
         if (playPauseButton != null)
         {
+            bool playing = previewAudioSource != null && previewAudioSource.isPlaying;
+            if (playIcon != null && pauseIcon != null)
+            {
+                var btnImage = playPauseButton.GetComponent<Image>();
+                if (btnImage != null)
+                    btnImage.sprite = playing ? pauseIcon : playIcon;
+            }
             var btnText = playPauseButton.GetComponentInChildren<TMP_Text>();
             if (btnText != null)
-            {
-                btnText.text = (previewAudioSource != null && previewAudioSource.isPlaying) ? "Pause" : "Play";
-            }
+                btnText.text = string.Empty;
         }
         
         // Update confirm button interactable
@@ -270,6 +406,8 @@ public class BeatmapImporter : MonoBehaviour
                 audioSeekSlider.SetValueWithoutNotify(previewAudioSource.time / previewAudioSource.clip.length);
             }
         }
+
+        UpdateWaveformPlayhead();
     }
     
     void OnPlayPauseClicked()
@@ -289,8 +427,8 @@ public class BeatmapImporter : MonoBehaviour
     void OnMarkDrumStart()
     {
         if (previewAudioSource == null || previewAudioSource.clip == null) return;
-        
-        markedDrumStartTime = previewAudioSource.time;
+
+        SetMarkedDrumStartTime(previewAudioSource.time, false);
         UnityEngine.Debug.Log($"Drum start marked at {markedDrumStartTime:F2}s");
     }
     
@@ -299,6 +437,296 @@ public class BeatmapImporter : MonoBehaviour
         if (previewAudioSource == null || previewAudioSource.clip == null) return;
         
         previewAudioSource.time = value * previewAudioSource.clip.length;
+        UpdateWaveformPlayhead();
+    }
+
+    void OnPreciseTimeInputEndEdit(string value)
+    {
+        if (!isPreviewMode || previewAudioSource == null || previewAudioSource.clip == null)
+        {
+            return;
+        }
+
+        if (TryParseFloat(value, out float parsed))
+        {
+            SetMarkedDrumStartTime(parsed, true);
+        }
+        else
+        {
+            RefreshPreciseTimeInput();
+        }
+    }
+
+    void OnPreciseTimeStepDown()
+    {
+        NudgeMarkedTime(-Mathf.Abs(preciseTimeStep));
+    }
+
+    void OnPreciseTimeStepUp()
+    {
+        NudgeMarkedTime(Mathf.Abs(preciseTimeStep));
+    }
+
+    void NudgeMarkedTime(float delta)
+    {
+        if (!isPreviewMode || previewAudioSource == null || previewAudioSource.clip == null)
+        {
+            return;
+        }
+
+        float baseTime = markedDrumStartTime >= 0f ? markedDrumStartTime : previewAudioSource.time;
+        SetMarkedDrumStartTime(baseTime + delta, true);
+    }
+
+    bool TryParseFloat(string text, out float value)
+    {
+        if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+        {
+            return true;
+        }
+
+        return float.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value);
+    }
+
+    void SetMarkedDrumStartTime(float value, bool seekAudio)
+    {
+        if (previewAudioSource == null || previewAudioSource.clip == null)
+        {
+            return;
+        }
+
+        float duration = previewAudioSource.clip.length;
+        float clamped = Mathf.Clamp(value, 0f, duration);
+        markedDrumStartTime = clamped;
+
+        if (seekAudio)
+        {
+            previewAudioSource.time = clamped;
+            if (audioSeekSlider != null && duration > 0f)
+            {
+                audioSeekSlider.SetValueWithoutNotify(clamped / duration);
+            }
+        }
+
+        RefreshPreciseTimeInput();
+        UpdateMarkedTimeMarker();
+        UpdateWaveformPlayhead();
+    }
+
+    void RefreshPreciseTimeInput()
+    {
+        if (preciseTimeInput == null)
+        {
+            return;
+        }
+
+        if (markedDrumStartTime >= 0f)
+        {
+            preciseTimeInput.SetTextWithoutNotify(markedDrumStartTime.ToString("F3", CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            preciseTimeInput.SetTextWithoutNotify(string.Empty);
+        }
+    }
+
+    void SetupWaveformSeekArea()
+    {
+        if (waveformImage == null)
+        {
+            return;
+        }
+
+        waveformSeekArea = waveformImage.GetComponent<WaveformSeekArea>();
+        if (waveformSeekArea == null)
+        {
+            waveformSeekArea = waveformImage.gameObject.AddComponent<WaveformSeekArea>();
+        }
+
+        waveformSeekArea.Initialize(waveformImage, OnWaveformSeekNormalized);
+    }
+
+    void OnWaveformSeekNormalized(float normalized)
+    {
+        if (previewAudioSource == null || previewAudioSource.clip == null)
+        {
+            return;
+        }
+
+        normalized = Mathf.Clamp01(normalized);
+        previewAudioSource.time = normalized * previewAudioSource.clip.length;
+
+        if (audioSeekSlider != null)
+        {
+            audioSeekSlider.SetValueWithoutNotify(normalized);
+        }
+
+        UpdateWaveformPlayhead();
+    }
+
+    void BuildWaveformTexture(AudioClip clip)
+    {
+        if (clip == null || waveformImage == null)
+        {
+            return;
+        }
+
+        int width = Mathf.Max(128, waveformTextureWidth);
+        int height = Mathf.Max(32, waveformTextureHeight);
+
+        if (waveformTexture != null)
+        {
+            Destroy(waveformTexture);
+            waveformTexture = null;
+        }
+
+        waveformTexture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+        {
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Bilinear
+        };
+
+        Color32[] pixels = new Color32[width * height];
+        Color32 background = waveformBackgroundColor;
+        Color32 wave = waveformColor;
+
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = background;
+        }
+
+        int channels = Mathf.Max(1, clip.channels);
+        int frameCount = Mathf.Max(1, clip.samples);
+        int framesPerPixel = Mathf.Max(1, frameCount / width);
+
+        float[] audioData = new float[frameCount * channels];
+        clip.GetData(audioData, 0);
+
+        float[] amplitudes = new float[width];
+        for (int x = 0; x < width; x++)
+        {
+            int frameStart = x * framesPerPixel;
+            int frameEnd = Mathf.Min(frameCount, frameStart + framesPerPixel);
+
+            float peak = 0f;
+            float sumSquares = 0f;
+            int sampleCount = 0;
+
+            for (int frame = frameStart; frame < frameEnd; frame++)
+            {
+                int sampleIndex = frame * channels;
+                for (int c = 0; c < channels; c++)
+                {
+                    float amplitude = Mathf.Abs(audioData[sampleIndex + c]);
+                    if (amplitude > peak)
+                    {
+                        peak = amplitude;
+                    }
+
+                    sumSquares += amplitude * amplitude;
+                    sampleCount++;
+                }
+            }
+
+            float rms = sampleCount > 0 ? Mathf.Sqrt(sumSquares / sampleCount) : 0f;
+            amplitudes[x] = useRmsForWaveform ? rms : peak;
+        }
+
+        float normalizationReference = GetAmplitudePercentile(amplitudes, waveformNormalizationPercentile);
+        normalizationReference = Mathf.Max(0.01f, normalizationReference);
+
+        int halfHeight = height / 2;
+        for (int x = 0; x < width; x++)
+        {
+            float normalized = Mathf.Clamp01(amplitudes[x] / normalizationReference) * waveformHeadroom;
+            int ampHeight = Mathf.Clamp(Mathf.RoundToInt(normalized * (halfHeight - 1)), 1, halfHeight - 1);
+            int yMin = halfHeight - ampHeight;
+            int yMax = halfHeight + ampHeight;
+
+            for (int y = yMin; y <= yMax; y++)
+            {
+                pixels[y * width + x] = wave;
+            }
+        }
+
+        waveformTexture.SetPixels32(pixels);
+        waveformTexture.Apply(false, false);
+        waveformImage.texture = waveformTexture;
+        UpdateMarkedTimeMarker();
+        UpdateWaveformPlayhead();
+    }
+
+    float GetAmplitudePercentile(float[] values, float percentile)
+    {
+        if (values == null || values.Length == 0)
+        {
+            return 1f;
+        }
+
+        float[] sorted = new float[values.Length];
+        Array.Copy(values, sorted, values.Length);
+        Array.Sort(sorted);
+
+        float clampedPercentile = Mathf.Clamp01(percentile);
+        int index = Mathf.Clamp(Mathf.FloorToInt((sorted.Length - 1) * clampedPercentile), 0, sorted.Length - 1);
+        return sorted[index];
+    }
+
+    void UpdateWaveformPlayhead()
+    {
+        if (waveformPlayhead == null || waveformImage == null || previewAudioSource == null || previewAudioSource.clip == null)
+        {
+            return;
+        }
+
+        Rect rect = waveformImage.rectTransform.rect;
+        if (rect.width <= 0f)
+        {
+            return;
+        }
+
+        float duration = previewAudioSource.clip.length;
+        if (duration <= 0f)
+        {
+            return;
+        }
+
+        float normalized = Mathf.Clamp01(previewAudioSource.time / duration);
+        float x = Mathf.Lerp(rect.xMin, rect.xMax, normalized);
+
+        Vector2 anchored = waveformPlayhead.anchoredPosition;
+        anchored.x = x;
+        waveformPlayhead.anchoredPosition = anchored;
+    }
+
+    void UpdateMarkedTimeMarker()
+    {
+        if (waveformMarkedTimeMarker == null)
+        {
+            return;
+        }
+
+        bool hasMark = markedDrumStartTime >= 0f;
+        waveformMarkedTimeMarker.gameObject.SetActive(hasMark);
+
+        if (!hasMark || waveformImage == null || previewAudioSource == null || previewAudioSource.clip == null)
+        {
+            return;
+        }
+
+        Rect rect = waveformImage.rectTransform.rect;
+        float duration = previewAudioSource.clip.length;
+        if (rect.width <= 0f || duration <= 0f)
+        {
+            return;
+        }
+
+        float normalized = Mathf.Clamp01(markedDrumStartTime / duration);
+        float x = Mathf.Lerp(rect.xMin, rect.xMax, normalized);
+
+        Vector2 anchored = waveformMarkedTimeMarker.anchoredPosition;
+        anchored.x = x;
+        waveformMarkedTimeMarker.anchoredPosition = anchored;
     }
     
     void OnConfirmOffset()
@@ -320,6 +748,9 @@ public class BeatmapImporter : MonoBehaviour
         // Clear temp paths
         tempMidiPath = null;
         tempAudioPath = null;
+        
+        // Reset drag-drop selections
+        ResetDragDropSelection();
         
         UnityEngine.Debug.Log("Import cancelled.");
     }
@@ -384,6 +815,9 @@ public class BeatmapImporter : MonoBehaviour
             {
                 UnityEngine.Debug.Log($"Successfully imported beatmap: {beatmapData.title}");
                 OnBeatmapImported?.Invoke(beatmapData);
+                
+                // Reset drag-drop selections after successful import
+                ResetDragDropSelection();
             }
         }
         else
@@ -395,6 +829,8 @@ public class BeatmapImporter : MonoBehaviour
         tempMidiPath = null;
         tempAudioPath = null;
         markedDrumStartTime = -1f;
+        RefreshPreciseTimeInput();
+        UpdateMarkedTimeMarker();
     }
     
     IEnumerator RunPythonParser(string inputPath, string outputPath, float drumStartOffset)
@@ -455,10 +891,8 @@ public class BeatmapImporter : MonoBehaviour
                 beatmap = wrapper.beatmap
             };
             
-            // Ensure imported beatmaps have audio_includes_countdown = false
             if (beatmapData.metadata != null)
             {
-                beatmapData.metadata.audio_includes_countdown = false;
                 UnityEngine.Debug.Log($"[BeatmapImporter] Loaded beatmap: {beatmapData.title}, offset={beatmapData.metadata.drum_start_offset:F1}s, audio_includes_countdown={beatmapData.metadata.audio_includes_countdown}");
             }
             
@@ -471,10 +905,194 @@ public class BeatmapImporter : MonoBehaviour
         }
     }
     
+    // Drag-drop callback methods
+    void OnMidiFileSelected(string filePath)
+    {
+        selectedMidiPath = filePath;
+        UnityEngine.Debug.Log($"[BeatmapImporter] MIDI file selected: {Path.GetFileName(filePath)}");
+        UpdateImportStatus();
+    }
+    
+    void OnAudioFileSelected(string filePath)
+    {
+        selectedAudioPath = filePath;
+        UnityEngine.Debug.Log($"[BeatmapImporter] Audio file selected: {Path.GetFileName(filePath)}");
+        UpdateImportStatus();
+    }
+    
+    void UpdateImportStatus()
+    {
+        if (importStatusText == null) return;
+        
+        bool hasMidi = !string.IsNullOrEmpty(selectedMidiPath);
+        bool hasAudio = !string.IsNullOrEmpty(selectedAudioPath);
+        
+        if (hasMidi && hasAudio)
+        {
+            importStatusText.text = "Ready to import";
+            importStatusText.color = Color.green;
+            
+            if (importButton != null)
+                importButton.interactable = true;
+        }
+        else if (hasMidi)
+        {
+            importStatusText.text = "Audio file required";
+            importStatusText.color = Color.yellow;
+            
+            if (importButton != null)
+                importButton.interactable = false;
+        }
+        else if (hasAudio)
+        {
+            importStatusText.text = "MIDI file required";
+            importStatusText.color = Color.yellow;
+            
+            if (importButton != null)
+                importButton.interactable = false;
+        }
+        else
+        {
+            importStatusText.text = "Select MIDI and Audio files";
+            importStatusText.color = Color.white;
+        }
+
+        if (importConfirmButton != null)
+            importConfirmButton.interactable = hasMidi && hasAudio;
+
+        if (importButton != null)
+            importButton.interactable = true;
+    }
+    
+    IEnumerator ProcessImportWithDragDropFiles(string midiPath, string audioPath)
+    {
+        tempMidiPath = midiPath;
+        tempAudioPath = audioPath;
+        
+        // Load audio for preview
+        UnityEngine.Debug.Log($"Loading audio for preview: {tempAudioPath}");
+        
+        using (var www = UnityEngine.Networking.UnityWebRequestMultimedia.GetAudioClip("file:///" + tempAudioPath, AudioType.UNKNOWN))
+        {
+            yield return www.SendWebRequest();
+            
+            if (www.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
+            {
+                UnityEngine.Debug.LogError($"Failed to load audio: {www.error}");
+                yield break;
+            }
+            
+            AudioClip clip = UnityEngine.Networking.DownloadHandlerAudioClip.GetContent(www);
+            
+            if (clip == null)
+            {
+                UnityEngine.Debug.LogError("Failed to create audio clip!");
+                yield break;
+            }
+            
+            previewAudioSource.clip = clip;
+            BuildWaveformTexture(clip);
+            
+            // Show preview panel
+            EnterPreviewMode();
+        }
+    }
+    
+    public void ResetDragDropSelection()
+    {
+        selectedMidiPath = null;
+        selectedAudioPath = null;
+        
+        if (midiDropArea != null)
+            midiDropArea.ClearSelection();
+        
+        if (audioDropArea != null)
+            audioDropArea.ClearSelection();
+        
+        UpdateImportStatus();
+    }
+    
     [Serializable]
     private class BeatmapWrapper
     {
         public BeatmapData.BeatmapMetadata metadata;
         public System.Collections.Generic.List<BeatmapNote> beatmap;
+    }
+}
+
+public class WaveformSeekArea : MonoBehaviour, IPointerDownHandler, IDragHandler
+{
+    private RawImage targetWaveform;
+    private Action<float> onSeekNormalized;
+
+    public void Initialize(RawImage waveform, Action<float> seekCallback)
+    {
+        targetWaveform = waveform;
+        onSeekNormalized = seekCallback;
+    }
+
+    public void OnPointerDown(PointerEventData eventData)
+    {
+        SeekFromPointer(eventData);
+    }
+
+    public void OnDrag(PointerEventData eventData)
+    {
+        SeekFromPointer(eventData);
+    }
+
+    private void SeekFromPointer(PointerEventData eventData)
+    {
+        if (targetWaveform == null || onSeekNormalized == null)
+        {
+            return;
+        }
+
+        RectTransform rectTransform = targetWaveform.rectTransform;
+        Vector2 localPoint;
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, eventData.position, eventData.pressEventCamera, out localPoint))
+        {
+            return;
+        }
+
+        Rect rect = rectTransform.rect;
+        float normalized = Mathf.InverseLerp(rect.xMin, rect.xMax, localPoint.x);
+        onSeekNormalized.Invoke(normalized);
+    }
+}
+
+public class ImportPanelLinkHandler : MonoBehaviour, IPointerClickHandler
+{
+    private TMP_Text targetText;
+    private string fallbackUrl;
+
+    public void Initialize(TMP_Text textComponent, string defaultUrl)
+    {
+        targetText = textComponent;
+        fallbackUrl = defaultUrl;
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (targetText == null)
+        {
+            return;
+        }
+
+        int linkIndex = TMP_TextUtilities.FindIntersectingLink(targetText, eventData.position, eventData.pressEventCamera);
+
+        if (linkIndex >= 0)
+        {
+            TMP_LinkInfo linkInfo = targetText.textInfo.linkInfo[linkIndex];
+            string linkId = linkInfo.GetLinkID();
+            string url = string.IsNullOrWhiteSpace(linkId) ? fallbackUrl : linkId;
+            Application.OpenURL(url);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallbackUrl))
+        {
+            Application.OpenURL(fallbackUrl);
+        }
     }
 }

@@ -18,6 +18,8 @@ public class TimelineUI : MonoBehaviour
     [SerializeField] private Button playPauseButton;
     [SerializeField] private Button stopButton;
     [SerializeField] private TextMeshProUGUI playPauseButtonText;
+    [SerializeField] private Sprite playIcon;
+    [SerializeField] private Sprite pauseIcon;
     
     private bool isInitialized = false;
     
@@ -266,16 +268,17 @@ public class TimelineUI : MonoBehaviour
     
     void UpdatePlayPauseButton()
     {
-        if (playPauseButtonText == null) return;
-        
-        if (beatmapPlayer != null && beatmapPlayer.IsPlaying)
+        bool isPlaying = beatmapPlayer != null && beatmapPlayer.IsPlaying;
+
+        if (playPauseButton != null && playIcon != null && pauseIcon != null)
         {
-            playPauseButtonText.text = "Pause";
+            var btnImage = playPauseButton.GetComponent<Image>();
+            if (btnImage != null)
+                btnImage.sprite = isPlaying ? pauseIcon : playIcon;
         }
-        else
-        {
-            playPauseButtonText.text = "Play";
-        }
+
+        if (playPauseButtonText != null)
+            playPauseButtonText.text = string.Empty;
     }
     
     void UpdateUI()
