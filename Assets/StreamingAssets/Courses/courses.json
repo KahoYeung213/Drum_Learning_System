@@ -1,0 +1,82 @@
+{
+  "courses": [
+    {
+      "id": "drum-foundations",
+      "title": "Drum Foundations",
+      "description": "Build timing, coordination, and groove fundamentals.",
+      "difficulty": "Beginner",
+      "modules": [
+        {
+          "id": "module-rudiments",
+          "title": "Rudiment Basics",
+          "description": "Start with core sticking patterns and control.",
+          "lessons": [
+            {
+              "id": "lesson-single-strokes",
+              "title": "Single Strokes",
+              "description": "Play consistent alternating strokes at slow tempo.",
+              "objective": "Maintain even dynamics and timing for one full phrase.",
+              "exercises": [
+                {
+                  "id": "exercise-single-1",
+                  "title": "Single Strokes - 60 BPM",
+                  "description": "Quarter-note single strokes.",
+                  "beatmapTitle": "Single Strokes 60",
+                  "beatmapJsonPath": "SingleStrokes60/beatmap.json",
+                  "requiredScore": 70
+                },
+                {
+                  "id": "exercise-single-2",
+                  "title": "Single Strokes - 80 BPM",
+                  "description": "Increase control at medium tempo.",
+                  "beatmapTitle": "Single Strokes 80",
+                  "beatmapJsonPath": "SingleStrokes80/beatmap.json",
+                  "requiredScore": 75
+                }
+              ]
+            },
+            {
+              "id": "lesson-double-strokes",
+              "title": "Double Strokes",
+              "description": "Develop bounce and rebound consistency.",
+              "objective": "Play doubles evenly for the full bar pattern.",
+              "exercises": [
+                {
+                  "id": "exercise-double-1",
+                  "title": "Double Strokes - 60 BPM",
+                  "description": "Controlled doubles at a steady tempo.",
+                  "beatmapTitle": "Double Strokes 60",
+                  "beatmapJsonPath": "DoubleStrokes60/beatmap.json",
+                  "requiredScore": 75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "module-grooves",
+          "title": "Core Grooves",
+          "description": "Move rudiments into musical groove patterns.",
+          "lessons": [
+            {
+              "id": "lesson-basic-rock",
+              "title": "Basic Rock Groove",
+              "description": "Kick, snare, and hi-hat coordination.",
+              "objective": "Keep groove consistent with minimal timing drift.",
+              "exercises": [
+                {
+                  "id": "exercise-rock-1",
+                  "title": "Rock Groove - Level 1",
+                  "description": "Entry level groove at 70 BPM.",
+                  "beatmapTitle": "Rock Groove L1",
+                  "beatmapJsonPath": "RockGrooveL1/beatmap.json",
+                  "requiredScore": 80
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

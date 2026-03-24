@@ -28,9 +28,16 @@ public class BeatmapAccordionUI : MonoBehaviour
     [SerializeField] private Sprite deleteIcon;
     
     private List<GameObject> accordionItems = new List<GameObject>();
+
+    void Awake()
+    {
+        ResolveAccordionReferences();
+    }
     
     void Start()
     {
+        ResolveAccordionReferences();
+
         // Find library if not assigned
         if (beatmapLibrary == null)
         {
@@ -48,12 +55,18 @@ public class BeatmapAccordionUI : MonoBehaviour
             beatmapLibrary.OnBeatmapsLoaded += PopulateAccordion;
             beatmapLibrary.OnBeatmapAdded += AddBeatmapToAccordion;
         }
+        else
+        {
+            Debug.LogError($"[BeatmapAccordionUI] BeatmapLibrary not found on object '{name}' in scene '{gameObject.scene.name}'.");
+        }
         
         // Initial population if beatmaps are already loaded
         if (beatmapLibrary != null && beatmapLibrary.Beatmaps.Count > 0)
         {
             PopulateAccordion(beatmapLibrary.Beatmaps);
         }
+
+        Debug.Log($"[BeatmapAccordionUI] Initialized '{name}' (scene: {gameObject.scene.name}, instance: {GetInstanceID()}) content={(accordionContent != null ? accordionContent.name : "NULL")} prefab={(accordionItemPrefab != null ? accordionItemPrefab.name : "NULL")}");
     }
     
     void OnDestroy()
@@ -88,9 +101,11 @@ public class BeatmapAccordionUI : MonoBehaviour
     
     void CreateAccordionItem(BeatmapData beatmap)
     {
+        ResolveAccordionReferences();
+
         if (accordionItemPrefab == null || accordionContent == null)
         {
-            Debug.LogError("Accordion item prefab or content container not assigned!");
+            Debug.LogError($"[BeatmapAccordionUI] Accordion item prefab or content container not assigned on '{name}' (scene: {gameObject.scene.name}, instance: {GetInstanceID()}). Content={(accordionContent != null ? accordionContent.name : "NULL")}, Prefab={(accordionItemPrefab != null ? accordionItemPrefab.name : "NULL")}");
             return;
         }
         
@@ -262,6 +277,28 @@ public class BeatmapAccordionUI : MonoBehaviour
         
         // Force layout rebuild
         LayoutRebuilder.ForceRebuildLayoutImmediate(accordionContent.GetComponent<RectTransform>());
+    }
+
+    void ResolveAccordionReferences()
+    {
+        if (accordionContent == null)
+        {
+            Transform contentCandidate = transform.Find("Viewport/Content");
+            if (contentCandidate == null)
+            {
+                contentCandidate = transform.Find("Content");
+            }
+            if (contentCandidate == null && transform.childCount > 0)
+            {
+                contentCandidate = transform.GetChild(0);
+            }
+
+            if (contentCandidate != null)
+            {
+                accordionContent = contentCandidate;
+                Debug.LogWarning($"[BeatmapAccordionUI] Auto-assigned accordionContent to '{accordionContent.name}' on '{name}'. Please wire it in Inspector to avoid ambiguity.");
+            }
+        }
     }
     
     void ClearAccordion()

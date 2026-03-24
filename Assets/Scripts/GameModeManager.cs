@@ -8,6 +8,13 @@ using UnityEngine.UI;
 /// </summary>
 public class GameModeManager : MonoBehaviour
 {
+    public enum AppMode
+    {
+        FreePlay,
+        Gameplay,
+        Course
+    }
+
     [Header("Mode Toggle Button")]
     [SerializeField] private Button modeToggleButton;
     [SerializeField] private TMPro.TextMeshProUGUI modeButtonText;
@@ -20,6 +27,10 @@ public class GameModeManager : MonoBehaviour
     
     [Header("Gameplay Mode UI (Hidden in Learning)")]
     [SerializeField] private GameObject scorePanel; // Score, combo, accuracy display
+
+    [Header("Course Mode UI")]
+    [SerializeField] private GameObject coursePanel; // Course scaffolding panel
+    [SerializeField] private bool includeCourseInToggle = false;
     
     [Header("Always Visible UI")]
     [SerializeField] private GameObject playbackControls; // Play/Pause/Stop buttons (always visible)
@@ -30,7 +41,7 @@ public class GameModeManager : MonoBehaviour
     [Header("Settings")]
     [SerializeField] private bool startInLearningMode = true;
     
-    private bool isLearningMode = true;
+    private AppMode currentMode = AppMode.FreePlay;
     
     void Start()
     {
@@ -48,10 +59,10 @@ public class GameModeManager : MonoBehaviour
         }
         
         // Initialize mode
-        isLearningMode = startInLearningMode;
+        currentMode = startInLearningMode ? AppMode.FreePlay : AppMode.Gameplay;
         UpdateModeUI(false); // Don't log on startup
         
-        Debug.Log($"[GameModeManager] Initialized in {(isLearningMode ? "FreePlay" : "Gameplay")} mode");
+        Debug.Log($"[GameModeManager] Initialized in {currentMode} mode");
     }
     
     /// <summary>
@@ -59,10 +70,23 @@ public class GameModeManager : MonoBehaviour
     /// </summary>
     public void ToggleMode()
     {
-        isLearningMode = !isLearningMode;
+        if (includeCourseInToggle)
+        {
+            currentMode = currentMode switch
+            {
+                AppMode.FreePlay => AppMode.Gameplay,
+                AppMode.Gameplay => AppMode.Course,
+                _ => AppMode.FreePlay
+            };
+        }
+        else
+        {
+            currentMode = currentMode == AppMode.FreePlay ? AppMode.Gameplay : AppMode.FreePlay;
+        }
+
         UpdateModeUI(true);
         
-        Debug.Log($"[GameModeManager] Switched to {(isLearningMode ? "FreePlay" : "Gameplay")} mode");
+        Debug.Log($"[GameModeManager] Switched to {currentMode} mode");
     }
     
     /// <summary>
@@ -70,9 +94,23 @@ public class GameModeManager : MonoBehaviour
     /// </summary>
     public void SetMode(bool learningMode)
     {
-        if (isLearningMode != learningMode)
+        AppMode targetMode = learningMode ? AppMode.FreePlay : AppMode.Gameplay;
+
+        if (currentMode != targetMode)
         {
-            isLearningMode = learningMode;
+            currentMode = targetMode;
+            UpdateModeUI(true);
+        }
+    }
+
+    /// <summary>
+    /// Explicitly enter course mode.
+    /// </summary>
+    public void SwitchToCourseMode()
+    {
+        if (currentMode != AppMode.Course)
+        {
+            currentMode = AppMode.Course;
             UpdateModeUI(true);
         }
     }
@@ -82,6 +120,10 @@ public class GameModeManager : MonoBehaviour
     /// </summary>
     void UpdateModeUI(bool useAnimation)
     {
+        bool isLearningMode = currentMode == AppMode.FreePlay;
+        bool isGameplayMode = currentMode == AppMode.Gameplay;
+        bool isCourseMode = currentMode == AppMode.Course;
+
         // Learning Mode UI (visible only in learning mode)
         SetActive(timelinePanel, isLearningMode);
         // Note: speedPanel visibility is managed by BeatmapPlayer based on metronome state
@@ -92,7 +134,10 @@ public class GameModeManager : MonoBehaviour
         }
         
         // Gameplay Mode UI (visible only in gameplay mode)
-        SetActive(scorePanel, !isLearningMode);
+        SetActive(scorePanel, isGameplayMode);
+
+        // Course mode UI
+        SetActive(coursePanel, isCourseMode);
         
         // Update speed panel visibility through BeatmapPlayer
         // Speed panel only visible when: metronome ON AND learning mode
@@ -104,7 +149,19 @@ public class GameModeManager : MonoBehaviour
         // Update toggle button text
         if (modeButtonText != null)
         {
-            modeButtonText.text = isLearningMode ? "Switch to Gameplay" : "Switch to FreePlay";
+            if (includeCourseInToggle)
+            {
+                modeButtonText.text = currentMode switch
+                {
+                    AppMode.FreePlay => "Switch to Gameplay",
+                    AppMode.Gameplay => "Switch to Course",
+                    _ => "Switch to FreePlay"
+                };
+            }
+            else
+            {
+                modeButtonText.text = isLearningMode ? "Switch to Gameplay" : "Switch to FreePlay";
+            }
         }
         
         // Optional: trigger animation if needed
@@ -128,6 +185,8 @@ public class GameModeManager : MonoBehaviour
     /// <summary>
     /// Get current mode
     /// </summary>
-    public bool IsLearningMode => isLearningMode;
-    public bool IsGameplayMode => !isLearningMode;
+    public bool IsLearningMode => currentMode == AppMode.FreePlay;
+    public bool IsGameplayMode => currentMode == AppMode.Gameplay;
+    public bool IsCourseMode => currentMode == AppMode.Course;
+    public AppMode CurrentMode => currentMode;
 }
