@@ -33,7 +33,17 @@ public class CourseLessonData
     public string title;
     public string description;
     public string objective;
+    public List<LessonVideoData> learningVideos = new List<LessonVideoData>();
     public List<CourseExerciseData> exercises = new List<CourseExerciseData>();
+}
+
+[Serializable]
+public class LessonVideoData
+{
+    public string title;
+    public string videoFilePath;
+    public string videoUrl;
+    public string youtubeUrl;
 }
 
 [Serializable]

@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System;
 using System.Collections.Generic;
 
 public class BeatmapAccordionUI : MonoBehaviour
@@ -8,6 +9,8 @@ public class BeatmapAccordionUI : MonoBehaviour
     [Header("References")]
     [SerializeField] private Transform accordionContent; // The "accordion" container
     [SerializeField] private GameObject accordionItemPrefab; // Prefab for accordion items
+    [SerializeField] private bool allowAutoResolveBindings = false;
+    [SerializeField] private bool runThisAccordionInstance = false;
     [SerializeField] private BeatmapLibrary beatmapLibrary;
     [SerializeField] private BeatmapPlayer beatmapPlayer; // Reference to the player
     
@@ -16,26 +19,30 @@ public class BeatmapAccordionUI : MonoBehaviour
     [SerializeField] private string contentTextPath = "Maps"; // Path to content text in prefab
     [SerializeField] private string playButtonPath = "PlayButton"; // Path to the Play button in prefab
     [SerializeField] private string deleteButtonPath = "DeleteButton"; // Path to the Delete button in prefab
-    
-    [Header("Play Button Configuration")]
-    [SerializeField] private Vector2 playButtonSize = new Vector2(60f, 30f); // Width x Height
-    [SerializeField] private float playButtonRightOffset = 10f; // Distance from right edge
-    [SerializeField] private Sprite playIcon;
-    
-    [Header("Delete Button Configuration")]
-    [SerializeField] private Vector2 deleteButtonSize = new Vector2(60f, 30f); // Width x Height
-    [SerializeField] private float deleteButtonRightOffset = 80f; // Distance from right edge
-    [SerializeField] private Sprite deleteIcon;
+    [SerializeField] private string actionsContainerPath = "Actions"; // Optional parent object that wraps Select/Delete buttons
     
     private List<GameObject> accordionItems = new List<GameObject>();
+    private bool isSubscribedToLibrary;
 
     void Awake()
     {
+        if (!runThisAccordionInstance)
+        {
+            enabled = false;
+            Debug.LogWarning($"[BeatmapAccordionUI] Disabled on '{name}' because runThisAccordionInstance is off.");
+            return;
+        }
+
         ResolveAccordionReferences();
     }
     
     void Start()
     {
+        if (!enabled)
+        {
+            return;
+        }
+
         ResolveAccordionReferences();
 
         // Find library if not assigned
@@ -52,8 +59,16 @@ public class BeatmapAccordionUI : MonoBehaviour
         
         if (beatmapLibrary != null)
         {
-            beatmapLibrary.OnBeatmapsLoaded += PopulateAccordion;
-            beatmapLibrary.OnBeatmapAdded += AddBeatmapToAccordion;
+            if (HasValidAccordionBindings())
+            {
+                beatmapLibrary.OnBeatmapsLoaded += PopulateAccordion;
+                beatmapLibrary.OnBeatmapAdded += AddBeatmapToAccordion;
+                isSubscribedToLibrary = true;
+            }
+            else
+            {
+                Debug.LogWarning($"[BeatmapAccordionUI] Skipping BeatmapLibrary subscription on '{name}' (scene: {gameObject.scene.name}, instance: {GetInstanceID()}) because accordionContent/prefab is not configured. This instance will not react to imports until references are fixed.");
+            }
         }
         else
         {
@@ -61,7 +76,7 @@ public class BeatmapAccordionUI : MonoBehaviour
         }
         
         // Initial population if beatmaps are already loaded
-        if (beatmapLibrary != null && beatmapLibrary.Beatmaps.Count > 0)
+        if (isSubscribedToLibrary && beatmapLibrary != null && beatmapLibrary.Beatmaps.Count > 0)
         {
             PopulateAccordion(beatmapLibrary.Beatmaps);
         }
@@ -71,10 +86,11 @@ public class BeatmapAccordionUI : MonoBehaviour
     
     void OnDestroy()
     {
-        if (beatmapLibrary != null)
+        if (isSubscribedToLibrary && beatmapLibrary != null)
         {
             beatmapLibrary.OnBeatmapsLoaded -= PopulateAccordion;
             beatmapLibrary.OnBeatmapAdded -= AddBeatmapToAccordion;
+            isSubscribedToLibrary = false;
         }
     }
     
@@ -158,59 +174,20 @@ public class BeatmapAccordionUI : MonoBehaviour
         // Store reference
         accordionItems.Add(item);
         
-        // Look for the Play button and add click listener
-        Button playButton = null;
-        
-        if (!string.IsNullOrEmpty(playButtonPath))
+        GameObject actionsContainer = null;
+        if (!string.IsNullOrEmpty(actionsContainerPath))
         {
-            Transform buttonTransform = item.transform.Find(playButtonPath);
-            if (buttonTransform != null)
-            {
-                playButton = buttonTransform.GetComponent<Button>();
-            }
+            Transform actionsTransform = FindTransformByPathOrName(item.transform, actionsContainerPath);
+            if (actionsTransform != null)
+                actionsContainer = actionsTransform.gameObject;
         }
+
+        // Look for the Play button and add click listener
+        Button playButton = FindButtonWithFallback(item.transform, actionsContainer != null ? actionsContainer.transform : null, playButtonPath);
         
         if (playButton != null)
         {
-            // Configure the button to ignore layout groups and position it on the right
-            RectTransform buttonRect = playButton.GetComponent<RectTransform>();
-            if (buttonRect != null)
-            {
-                // Make the button ignore any layout group controls
-                LayoutElement layoutElement = playButton.GetComponent<LayoutElement>();
-                if (layoutElement == null)
-                {
-                    layoutElement = playButton.gameObject.AddComponent<LayoutElement>();
-                }
-                layoutElement.ignoreLayout = true;
-                
-                // Set anchors to middle-right (not stretched)
-                buttonRect.anchorMin = new Vector2(1f, 0.5f);
-                buttonRect.anchorMax = new Vector2(1f, 0.5f);
-                buttonRect.pivot = new Vector2(1f, 0.5f);
-                
-                // Set button size (configurable in inspector)
-                buttonRect.sizeDelta = playButtonSize;
-                
-                // Position it from the right edge, centered vertically (configurable offset)
-                buttonRect.anchoredPosition = new Vector2(-playButtonRightOffset, 0f);
-            }
-            
             playButton.onClick.AddListener(() => OnBeatmapSelected(beatmap));
-            
-            // Set button icon, clearing any text label
-            if (playIcon != null)
-            {
-                Image btnImage = playButton.GetComponent<Image>();
-                if (btnImage != null)
-                    btnImage.sprite = playIcon;
-            }
-            TextMeshProUGUI buttonText = playButton.GetComponentInChildren<TextMeshProUGUI>();
-            if (buttonText != null)
-                buttonText.text = string.Empty;
-            Text legacyText = playButton.GetComponentInChildren<Text>();
-            if (legacyText != null)
-                legacyText.text = string.Empty;
         }
         else
         {
@@ -218,58 +195,28 @@ public class BeatmapAccordionUI : MonoBehaviour
         }
         
         // Look for the Delete button and add click listener
-        Button deleteButton = null;
-        
-        if (!string.IsNullOrEmpty(deleteButtonPath))
-        {
-            Transform buttonTransform = item.transform.Find(deleteButtonPath);
-            if (buttonTransform != null)
-            {
-                deleteButton = buttonTransform.GetComponent<Button>();
-            }
-        }
+        Button deleteButton = FindButtonWithFallback(item.transform, actionsContainer != null ? actionsContainer.transform : null, deleteButtonPath);
         
         if (deleteButton != null)
         {
-            // Configure the delete button to ignore layout groups and position it on the right
-            RectTransform buttonRect = deleteButton.GetComponent<RectTransform>();
-            if (buttonRect != null)
-            {
-                // Make the button ignore any layout group controls
-                LayoutElement layoutElement = deleteButton.GetComponent<LayoutElement>();
-                if (layoutElement == null)
-                {
-                    layoutElement = deleteButton.gameObject.AddComponent<LayoutElement>();
-                }
-                layoutElement.ignoreLayout = true;
-                
-                // Set anchors to middle-right (not stretched)
-                buttonRect.anchorMin = new Vector2(1f, 0.5f);
-                buttonRect.anchorMax = new Vector2(1f, 0.5f);
-                buttonRect.pivot = new Vector2(1f, 0.5f);
-                
-                // Set button size (configurable in inspector)
-                buttonRect.sizeDelta = deleteButtonSize;
-                
-                // Position it from the right edge, centered vertically (configurable offset)
-                buttonRect.anchoredPosition = new Vector2(-deleteButtonRightOffset, 0f);
-            }
-            
             deleteButton.onClick.AddListener(() => OnBeatmapDelete(beatmap, item));
+        }
+        else
+        {
+            Debug.LogWarning($"Delete button not found at path '{deleteButtonPath}' for beatmap: {beatmap.title}");
+        }
 
-            // Set delete icon, clearing any text label
-            if (deleteIcon != null)
-            {
-                Image btnImage = deleteButton.GetComponent<Image>();
-                if (btnImage != null)
-                    btnImage.sprite = deleteIcon;
-            }
-            TextMeshProUGUI buttonText = deleteButton.GetComponentInChildren<TextMeshProUGUI>();
-            if (buttonText != null)
-                buttonText.text = string.Empty;
-            Text legacyText = deleteButton.GetComponentInChildren<Text>();
-            if (legacyText != null)
-                legacyText.text = string.Empty;
+        // Keep action buttons hidden while accordion element is collapsed.
+        Toggle itemToggle = item.GetComponent<Toggle>();
+        if (itemToggle != null)
+        {
+            SetActionButtonsVisible(playButton, deleteButton, actionsContainer, itemToggle.isOn);
+            itemToggle.onValueChanged.AddListener(isOpen => SetActionButtonsVisible(playButton, deleteButton, actionsContainer, isOpen));
+        }
+        else
+        {
+            // Fallback for non-toggle prefabs: leave buttons visible.
+            SetActionButtonsVisible(playButton, deleteButton, actionsContainer, true);
         }
         
         // Debug: Check if item was properly added to parent
@@ -279,26 +226,70 @@ public class BeatmapAccordionUI : MonoBehaviour
         LayoutRebuilder.ForceRebuildLayoutImmediate(accordionContent.GetComponent<RectTransform>());
     }
 
+    Button FindButtonWithFallback(Transform itemRoot, Transform actionsRoot, string pathOrName)
+    {
+        Transform found = FindTransformByPathOrName(itemRoot, pathOrName);
+
+        if (found == null && actionsRoot != null)
+            found = FindTransformByPathOrName(actionsRoot, pathOrName);
+
+        if (found == null)
+            return null;
+
+        return found.GetComponent<Button>();
+    }
+
+    Transform FindTransformByPathOrName(Transform root, string pathOrName)
+    {
+        if (root == null || string.IsNullOrEmpty(pathOrName))
+            return null;
+
+        Transform found = root.Find(pathOrName);
+        if (found != null)
+            return found;
+
+        Transform[] all = root.GetComponentsInChildren<Transform>(true);
+        foreach (Transform t in all)
+        {
+            if (t.name == pathOrName)
+                return t;
+        }
+
+        return null;
+    }
+
+    void SetActionButtonsVisible(Button playButton, Button deleteButton, GameObject actionsContainer, bool isVisible)
+    {
+        if (actionsContainer != null)
+        {
+            actionsContainer.SetActive(isVisible);
+            return;
+        }
+
+        if (playButton != null)
+            playButton.gameObject.SetActive(isVisible);
+
+        if (deleteButton != null)
+            deleteButton.gameObject.SetActive(isVisible);
+    }
+
     void ResolveAccordionReferences()
     {
-        if (accordionContent == null)
+        if (!allowAutoResolveBindings)
         {
-            Transform contentCandidate = transform.Find("Viewport/Content");
-            if (contentCandidate == null)
-            {
-                contentCandidate = transform.Find("Content");
-            }
-            if (contentCandidate == null && transform.childCount > 0)
-            {
-                contentCandidate = transform.GetChild(0);
-            }
-
-            if (contentCandidate != null)
-            {
-                accordionContent = contentCandidate;
-                Debug.LogWarning($"[BeatmapAccordionUI] Auto-assigned accordionContent to '{accordionContent.name}' on '{name}'. Please wire it in Inspector to avoid ambiguity.");
-            }
+            return;
         }
+
+        if (accordionContent == null || accordionItemPrefab == null)
+        {
+            Debug.LogWarning($"[BeatmapAccordionUI] Auto-resolve is enabled but bindings are incomplete on '{name}'. Please assign accordionContent and accordionItemPrefab explicitly in the Inspector.");
+        }
+    }
+
+    bool HasValidAccordionBindings()
+    {
+        ResolveAccordionReferences();
+        return accordionContent != null && accordionItemPrefab != null;
     }
     
     void ClearAccordion()

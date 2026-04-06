@@ -7,6 +7,7 @@ public class BeatmapLibrary : MonoBehaviour
 {
     private List<BeatmapData> beatmaps = new List<BeatmapData>();
     private string beatmapsDirectory;
+    private string defaultBeatmapsSourceDirectory;
     
     public event Action<List<BeatmapData>> OnBeatmapsLoaded;
     public event Action<BeatmapData> OnBeatmapAdded;
@@ -17,11 +18,14 @@ public class BeatmapLibrary : MonoBehaviour
     void Awake()
     {
         beatmapsDirectory = Path.Combine(Application.persistentDataPath, "Beatmaps");
+        defaultBeatmapsSourceDirectory = Path.Combine(Application.streamingAssetsPath, "Beatmaps");
         
         if (!Directory.Exists(beatmapsDirectory))
         {
             Directory.CreateDirectory(beatmapsDirectory);
         }
+
+        SeedDefaultBeatmapsIfNeeded();
         
         LoadAllBeatmaps();
     }
@@ -76,6 +80,71 @@ public class BeatmapLibrary : MonoBehaviour
         
         UnityEngine.Debug.Log($"Loaded {beatmaps.Count} beatmaps from library.");
         OnBeatmapsLoaded?.Invoke(beatmaps);
+    }
+
+    private void SeedDefaultBeatmapsIfNeeded()
+    {
+        if (!Directory.Exists(defaultBeatmapsSourceDirectory))
+        {
+            return;
+        }
+
+        string[] sourceFolders = Directory.GetDirectories(defaultBeatmapsSourceDirectory, "*", SearchOption.AllDirectories);
+        if (sourceFolders.Length == 0)
+        {
+            return;
+        }
+
+        foreach (string sourceFolder in sourceFolders)
+        {
+            string relativeFolder = GetRelativeFolderPath(defaultBeatmapsSourceDirectory, sourceFolder);
+            string destinationFolder = Path.Combine(beatmapsDirectory, relativeFolder);
+
+            if (Directory.Exists(destinationFolder) && File.Exists(Path.Combine(destinationFolder, "beatmap.json")))
+            {
+                continue;
+            }
+
+            CopyDirectory(sourceFolder, destinationFolder);
+        }
+
+        string rootBeatmapJson = Path.Combine(defaultBeatmapsSourceDirectory, "beatmap.json");
+        if (File.Exists(rootBeatmapJson) && !File.Exists(Path.Combine(beatmapsDirectory, "beatmap.json")))
+        {
+            File.Copy(rootBeatmapJson, Path.Combine(beatmapsDirectory, "beatmap.json"), true);
+        }
+    }
+
+    private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+    {
+        if (!Directory.Exists(destinationDirectory))
+        {
+            Directory.CreateDirectory(destinationDirectory);
+        }
+
+        foreach (string filePath in Directory.GetFiles(sourceDirectory))
+        {
+            string destinationPath = Path.Combine(destinationDirectory, Path.GetFileName(filePath));
+            File.Copy(filePath, destinationPath, true);
+        }
+
+        foreach (string nestedDirectory in Directory.GetDirectories(sourceDirectory))
+        {
+            string nestedDestination = Path.Combine(destinationDirectory, Path.GetFileName(nestedDirectory));
+            CopyDirectory(nestedDirectory, nestedDestination);
+        }
+    }
+
+    private static string GetRelativeFolderPath(string rootDirectory, string fullDirectoryPath)
+    {
+        string normalizedRoot = rootDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (fullDirectoryPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            string relative = fullDirectoryPath.Substring(normalizedRoot.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return relative;
+        }
+
+        return Path.GetFileName(fullDirectoryPath);
     }
     
     BeatmapData LoadBeatmapFromFolder(string folderPath)

@@ -12,6 +12,10 @@ public class FallingNote : MonoBehaviour
     private int _lane;
     private Color _emissionColor = Color.white;
     private bool _isHit = false; // Track if this note has been hit
+
+    [Header("Flash Safety")]
+    [SerializeField, Range(0f, 3f)] private float emissionIntensity = 0.9f;
+    [SerializeField, Range(0.02f, 0.5f)] private float flashDuration = 0.08f;
     
     // Public properties for accessing data (used for hit detection and seeking)
     public float HitTime => _hitTime;
@@ -59,6 +63,12 @@ public class FallingNote : MonoBehaviour
     System.Collections.IEnumerator LightUpDrum()
     {
         var renderer = _drumMesh.GetComponent<Renderer>();
+        if (renderer == null)
+        {
+            Destroy(gameObject);
+            yield break;
+        }
+
         Material mat = renderer.material;
         
         // Store original emission
@@ -74,11 +84,10 @@ public class FallingNote : MonoBehaviour
         
         if (mat.HasProperty("_EmissionColor"))
         {
-            // Use HDR emission for visibility (intensity boost)
-            mat.SetColor("_EmissionColor", _emissionColor.linear * 8.0f);
+            mat.SetColor("_EmissionColor", _emissionColor.linear * emissionIntensity);
         }
 
-        yield return new WaitForSeconds(0.15f);
+        yield return new WaitForSeconds(flashDuration);
 
         // Restore original emission
         if (mat.HasProperty("_EmissionColor"))

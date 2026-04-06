@@ -8,67 +8,54 @@ public class CourseScaffoldingUI : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private CourseLibrary courseLibrary;
-    [SerializeField] private CourseProgressManager progressManager;
-    [SerializeField] private BeatmapLibrary beatmapLibrary;
-    [SerializeField] private BeatmapPlayer beatmapPlayer;
-    [SerializeField] private GameModeManager gameModeManager;
+    [SerializeField] private LessonContentUI lessonContentUI;
+
+    [Header("Course Selection Buttons")]
+    [SerializeField] private Button beginnerCourseButton;
+    [SerializeField] private Button intermediateCourseButton;
+    [SerializeField] private Button advancedCourseButton;
+    [SerializeField] private string beginnerDifficultyLabel = "Beginner";
+    [SerializeField] private string intermediateDifficultyLabel = "Intermediate";
+    [SerializeField] private string advancedDifficultyLabel = "Advanced";
 
     [Header("Scaffolding Lists")]
-    [SerializeField] private Transform courseListRoot;
     [SerializeField] private Transform moduleListRoot;
-    [SerializeField] private Transform lessonListRoot;
-    [SerializeField] private Transform exerciseListRoot;
     [SerializeField] private GameObject listItemButtonPrefab;
-    [SerializeField] private GameObject courseItemButtonPrefab;
     [SerializeField] private GameObject moduleItemButtonPrefab;
     [SerializeField] private GameObject lessonItemButtonPrefab;
-    [SerializeField] private GameObject exerciseItemButtonPrefab;
 
     [Header("Module Accordion (Sidebar)")]
     [SerializeField] private bool useModuleAccordionSidebar = true;
     [SerializeField] private bool allowCollapseExpandedModule = true;
-    [SerializeField] private bool autoSelectLessonOnCourseLoad = false;
-    [SerializeField] private bool autoSelectLessonWhenModuleExpanded = false;
-    [SerializeField] private bool normalizeSpawnedItemUIState = true;
+    [SerializeField] private bool autoSelectLessonWhenModuleExpanded = true;
     [SerializeField] private string moduleHeaderButtonPath = "Header";
     [SerializeField] private string moduleTitleTextPath = "Header/Title";
-    [SerializeField] private string moduleProgressSliderPath = "Header/ProgressBar";
-    [SerializeField] private string moduleProgressFillImagePath = "";
-    [SerializeField] private string moduleProgressTextPath = "Header/ProgressText";
+    [SerializeField] private string moduleProgressBarPath = "Header/RawImage";
+    [SerializeField] private string moduleProgressTextPath = "Header/RawImage/Progress text";
     [SerializeField] private string moduleLessonsContainerPath = "LessonsContainer";
-    [SerializeField] private string courseItemTextPath = "Title";
     [SerializeField] private string lessonItemTextPath = "Title";
-    [SerializeField] private string exerciseItemTextPath = "Title";
-
-    [Header("Details Panel")]
-    [SerializeField] private TMP_Text breadcrumbText;
-    [SerializeField] private TMP_Text lessonTitleText;
-    [SerializeField] private TMP_Text lessonDescriptionText;
-    [SerializeField] private TMP_Text lessonObjectiveText;
-    [SerializeField] private TMP_Text lessonProgressText;
-    [SerializeField] private TMP_Text selectedExerciseText;
-
-    [Header("Actions")]
-    [SerializeField] private Button switchToCourseButton;
-    [SerializeField] private Button backToPracticeButton;
-    [SerializeField] private Button playExerciseButton;
-    [SerializeField] private Button completeExerciseButton;
-    [SerializeField] private Button nextLessonButton;
-
-    private readonly List<GameObject> generatedItems = new List<GameObject>();
+    [SerializeField] private string lessonStatusTextPath = "Status";
 
     private DrumCourseData selectedCourse;
     private CourseModuleData selectedModule;
     private CourseLessonData selectedLesson;
-    private CourseExerciseData selectedExercise;
-    private int selectedModuleIndex;
-    private int selectedLessonIndex;
+    private int selectedModuleIndex = -1;
+    private int selectedLessonIndex = -1;
     private int expandedModuleIndex = -1;
+    private GameObject moduleTemplateInstance;
+    private CourseProgressManager progressManager;
+    private readonly Dictionary<int, float> progressBarBaseWidths = new Dictionary<int, float>();
 
     private void Start()
     {
         ResolveReferences();
-        BindButtons();
+        CacheModuleTemplate();
+        BindCourseButtons();
+
+        if (lessonContentUI != null)
+        {
+            lessonContentUI.OnCompleteLessonRequested += HandleLessonCompleted;
+        }
 
         if (courseLibrary != null)
         {
@@ -87,6 +74,93 @@ public class CourseScaffoldingUI : MonoBehaviour
         {
             courseLibrary.OnCoursesLoaded -= HandleCoursesLoaded;
         }
+
+        if (lessonContentUI != null)
+        {
+            lessonContentUI.OnCompleteLessonRequested -= HandleLessonCompleted;
+        }
+
+        UnbindCourseButtons();
+    }
+
+    private void BindCourseButtons()
+    {
+        if (beginnerCourseButton != null)
+        {
+            beginnerCourseButton.onClick.RemoveListener(OnBeginnerCourseClicked);
+            beginnerCourseButton.onClick.AddListener(OnBeginnerCourseClicked);
+        }
+
+        if (intermediateCourseButton != null)
+        {
+            intermediateCourseButton.onClick.RemoveListener(OnIntermediateCourseClicked);
+            intermediateCourseButton.onClick.AddListener(OnIntermediateCourseClicked);
+        }
+
+        if (advancedCourseButton != null)
+        {
+            advancedCourseButton.onClick.RemoveListener(OnAdvancedCourseClicked);
+            advancedCourseButton.onClick.AddListener(OnAdvancedCourseClicked);
+        }
+    }
+
+    private void UnbindCourseButtons()
+    {
+        if (beginnerCourseButton != null)
+        {
+            beginnerCourseButton.onClick.RemoveListener(OnBeginnerCourseClicked);
+        }
+
+        if (intermediateCourseButton != null)
+        {
+            intermediateCourseButton.onClick.RemoveListener(OnIntermediateCourseClicked);
+        }
+
+        if (advancedCourseButton != null)
+        {
+            advancedCourseButton.onClick.RemoveListener(OnAdvancedCourseClicked);
+        }
+    }
+
+    private void OnBeginnerCourseClicked()
+    {
+        SelectCourseByDifficulty(beginnerDifficultyLabel);
+    }
+
+    private void OnIntermediateCourseClicked()
+    {
+        SelectCourseByDifficulty(intermediateDifficultyLabel);
+    }
+
+    private void OnAdvancedCourseClicked()
+    {
+        SelectCourseByDifficulty(advancedDifficultyLabel);
+    }
+
+    private void SelectCourseByDifficulty(string difficultyLabel)
+    {
+        if (courseLibrary == null || string.IsNullOrEmpty(difficultyLabel))
+        {
+            return;
+        }
+
+        IReadOnlyList<DrumCourseData> allCourses = courseLibrary.Courses;
+        if (allCourses == null || allCourses.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < allCourses.Count; i++)
+        {
+            DrumCourseData course = allCourses[i];
+            if (course != null && string.Equals(course.difficulty, difficultyLabel, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectCourse(course);
+                return;
+            }
+        }
+
+        Debug.LogWarning($"[CourseScaffoldingUI] No course found for difficulty '{difficultyLabel}'.");
     }
 
     private void ResolveReferences()
@@ -96,73 +170,29 @@ public class CourseScaffoldingUI : MonoBehaviour
             courseLibrary = FindFirstObjectByType<CourseLibrary>();
         }
 
+        if (lessonContentUI == null)
+        {
+            lessonContentUI = FindFirstObjectByType<LessonContentUI>();
+        }
+
         if (progressManager == null)
         {
             progressManager = FindFirstObjectByType<CourseProgressManager>();
         }
-
-        if (beatmapLibrary == null)
-        {
-            beatmapLibrary = FindFirstObjectByType<BeatmapLibrary>();
-        }
-
-        if (beatmapPlayer == null)
-        {
-            beatmapPlayer = FindFirstObjectByType<BeatmapPlayer>();
-        }
-
-        if (gameModeManager == null)
-        {
-            gameModeManager = FindFirstObjectByType<GameModeManager>();
-        }
-    }
-
-    private void BindButtons()
-    {
-        BindButton(switchToCourseButton, OnSwitchToCourseClicked);
-        BindButton(backToPracticeButton, OnBackToPracticeClicked);
-        BindButton(playExerciseButton, OnPlayExerciseClicked);
-        BindButton(completeExerciseButton, OnCompleteExerciseClicked);
-        BindButton(nextLessonButton, OnNextLessonClicked);
-    }
-
-    private static void BindButton(Button button, Action callback)
-    {
-        if (button == null)
-        {
-            return;
-        }
-
-        button.onClick.RemoveAllListeners();
-        button.onClick.AddListener(() => callback?.Invoke());
     }
 
     private void HandleCoursesLoaded(List<DrumCourseData> courses)
     {
-        PopulateCourses(courses);
-
-        if (courses.Count > 0)
+        if (courses == null || courses.Count == 0)
         {
-            SelectCourse(courses[0]);
-        }
-        else
-        {
-            SetDetailText("No course data found.", string.Empty, string.Empty, string.Empty, string.Empty);
-        }
-    }
-
-    private void PopulateCourses(List<DrumCourseData> courses)
-    {
-        ClearList(courseListRoot);
-
-        foreach (DrumCourseData course in courses)
-        {
-            GameObject item = CreateListItem(courseListRoot, GetPrefabForList(ListType.Course), $"{course.title} ({course.difficulty})", false, () => SelectCourse(course), courseItemTextPath);
-            if (item != null)
+            if (lessonContentUI != null)
             {
-                generatedItems.Add(item);
+                lessonContentUI.Clear();
             }
+            return;
         }
+
+        SelectCourse(courses[0]);
     }
 
     private void SelectCourse(DrumCourseData course)
@@ -170,28 +200,31 @@ public class CourseScaffoldingUI : MonoBehaviour
         selectedCourse = course;
         selectedModule = null;
         selectedLesson = null;
-        selectedExercise = null;
-        selectedModuleIndex = 0;
-        selectedLessonIndex = 0;
+        selectedModuleIndex = -1;
+        selectedLessonIndex = -1;
         expandedModuleIndex = -1;
 
         PopulateModules();
 
-        if (autoSelectLessonOnCourseLoad && !TrySelectFirstUnlockedLesson())
+        if (selectedCourse != null && selectedCourse.modules != null && selectedCourse.modules.Count > 0)
         {
-            SetDetailText("No unlocked lessons found.", string.Empty, string.Empty, string.Empty, string.Empty);
-            ClearList(exerciseListRoot);
+            SelectFirstLessonInModule(0);
+        }
+        else if (lessonContentUI != null)
+        {
+            lessonContentUI.Clear();
         }
     }
 
     private void PopulateModules()
     {
-        ClearList(moduleListRoot);
+        CacheModuleTemplate();
+        ClearList(moduleListRoot, moduleTemplateInstance);
 
-        // Keep the separate lesson panel empty when module accordion sidebar is in use.
-        ClearList(lessonListRoot);
-
-        ClearList(exerciseListRoot);
+        if (moduleTemplateInstance != null)
+        {
+            moduleTemplateInstance.SetActive(false);
+        }
 
         if (selectedCourse == null || selectedCourse.modules == null)
         {
@@ -203,91 +236,209 @@ public class CourseScaffoldingUI : MonoBehaviour
             CourseModuleData module = selectedCourse.modules[i];
             int capturedIndex = i;
 
-            GameObject item = CreateListItem(moduleListRoot, GetPrefabForList(ListType.Module), module.title, false, () => SelectModule(capturedIndex));
-            if (item != null)
+            GameObject moduleItem = CreateListItem(moduleListRoot, GetPrefabForList(ListType.Module), module.title, false, () => ToggleModuleAccordion(capturedIndex), moduleTitleTextPath);
+            if (moduleItem == null)
             {
-                ConfigureModuleAccordionItem(item, module, capturedIndex);
-                generatedItems.Add(item);
+                continue;
             }
+
+            ConfigureModuleAccordionItem(moduleItem, module, capturedIndex);
         }
     }
 
-    private void SelectModule(int moduleIndex)
+    private void ConfigureModuleAccordionItem(GameObject moduleItem, CourseModuleData module, int moduleIndex)
+    {
+        if (moduleItem == null || module == null)
+        {
+            return;
+        }
+
+        UpdateModuleProgressUI(moduleItem, module);
+
+        Button headerButton = null;
+        Transform headerTransform = FindByPathOrSelf(moduleItem.transform, moduleHeaderButtonPath);
+        if (headerTransform != null)
+        {
+            headerButton = headerTransform.GetComponent<Button>();
+            if (headerButton == null)
+            {
+                headerButton = headerTransform.GetComponentInChildren<Button>(true);
+            }
+        }
+
+        if (headerButton != null)
+        {
+            headerButton.onClick.RemoveAllListeners();
+            headerButton.onClick.AddListener(() => ToggleModuleAccordion(moduleIndex));
+        }
+
+        if (!useModuleAccordionSidebar)
+        {
+            return;
+        }
+
+        Transform lessonsContainer = FindByPathStrict(moduleItem.transform, moduleLessonsContainerPath);
+        if (lessonsContainer == null)
+        {
+            return;
+        }
+
+        bool expanded = moduleIndex == expandedModuleIndex;
+        lessonsContainer.gameObject.SetActive(expanded);
+        if (!expanded)
+        {
+            return;
+        }
+
+        PopulateLessonsContainer(lessonsContainer, module, moduleIndex);
+    }
+
+    private void ToggleModuleAccordion(int moduleIndex)
     {
         if (selectedCourse == null || selectedCourse.modules == null || moduleIndex < 0 || moduleIndex >= selectedCourse.modules.Count)
         {
             return;
         }
 
-        selectedModuleIndex = moduleIndex;
-        selectedModule = selectedCourse.modules[moduleIndex];
-        selectedLesson = null;
-        selectedExercise = null;
-        selectedLessonIndex = -1;
-        expandedModuleIndex = moduleIndex;
-
-        if (useModuleAccordionSidebar)
+        bool isSameExpanded = expandedModuleIndex == moduleIndex;
+        if (isSameExpanded && allowCollapseExpandedModule)
         {
-            PopulateModules();
-            if (autoSelectLessonWhenModuleExpanded)
-            {
-                SelectFirstUnlockedLessonInModule(moduleIndex);
-            }
+            expandedModuleIndex = -1;
+            RefreshModuleAccordionVisibility();
+            return;
         }
-        else
+
+        expandedModuleIndex = moduleIndex;
+        RefreshModuleAccordionVisibility();
+
+        if (autoSelectLessonWhenModuleExpanded)
         {
-            PopulateLessons();
+            SelectFirstLessonInModule(moduleIndex);
         }
     }
 
-    private void PopulateLessons()
+    private void RefreshModuleAccordionVisibility()
     {
-        if (useModuleAccordionSidebar)
+        if (selectedCourse == null || selectedCourse.modules == null || moduleListRoot == null)
         {
             return;
         }
 
-        ClearList(lessonListRoot);
-        ClearList(exerciseListRoot);
+        int childOffset = GetModuleChildOffset();
+        int moduleCount = Mathf.Min(moduleListRoot.childCount - childOffset, selectedCourse.modules.Count);
+        for (int moduleIndex = 0; moduleIndex < moduleCount; moduleIndex++)
+        {
+            Transform moduleItem = moduleListRoot.GetChild(moduleIndex + childOffset);
+            Transform lessonsContainer = FindByPathStrict(moduleItem, moduleLessonsContainerPath);
+            if (lessonsContainer == null)
+            {
+                continue;
+            }
 
-        if (selectedCourse == null || selectedModule == null || selectedModule.lessons == null)
+            bool expanded = moduleIndex == expandedModuleIndex;
+            lessonsContainer.gameObject.SetActive(expanded);
+
+            if (expanded)
+            {
+                PopulateLessonsContainer(lessonsContainer, selectedCourse.modules[moduleIndex], moduleIndex);
+            }
+        }
+    }
+
+    private void PopulateLessonsContainer(Transform lessonsContainer, CourseModuleData module, int moduleIndex)
+    {
+        if (lessonsContainer == null || module == null)
         {
             return;
         }
 
-        for (int i = 0; i < selectedModule.lessons.Count; i++)
+        GameObject lessonTemplate = GetLessonTemplate(lessonsContainer);
+        ClearList(lessonsContainer, lessonTemplate);
+
+        if (lessonTemplate != null)
         {
-            CourseLessonData lesson = selectedModule.lessons[i];
-            int capturedIndex = i;
+            lessonTemplate.SetActive(false);
+        }
 
-            bool unlocked = progressManager == null || progressManager.IsLessonUnlocked(selectedCourse, selectedModuleIndex, i);
-            string title = unlocked ? lesson.title : "[Locked] " + lesson.title;
+        if (module.lessons == null)
+        {
+            return;
+        }
 
-            GameObject item = CreateListItem(lessonListRoot, GetPrefabForList(ListType.Lesson), title, !unlocked, () =>
+        for (int lessonIndex = 0; lessonIndex < module.lessons.Count; lessonIndex++)
+        {
+            CourseLessonData lesson = module.lessons[lessonIndex];
+            int capturedLessonIndex = lessonIndex;
+
+            GameObject lessonItem = CreateListItem(
+                lessonsContainer,
+                lessonTemplate != null ? lessonTemplate : GetPrefabForList(ListType.Lesson),
+                lesson.title,
+                false,
+                () => SelectLesson(moduleIndex, capturedLessonIndex),
+                lessonItemTextPath,
+                true);
+
+            if (lessonItem != null)
             {
-                if (unlocked)
-                {
-                    SelectLesson(selectedModuleIndex, capturedIndex);
-                }
-            }, lessonItemTextPath);
-
-            if (item != null)
-            {
-                generatedItems.Add(item);
+                UpdateLessonStatusUI(lessonItem, module, lesson, capturedLessonIndex);
             }
         }
 
-        for (int i = 0; i < selectedModule.lessons.Count; i++)
+        if (lessonTemplate != null)
         {
-            bool unlocked = progressManager == null || progressManager.IsLessonUnlocked(selectedCourse, selectedModuleIndex, i);
-            if (unlocked)
-            {
-                SelectLesson(selectedModuleIndex, i);
-                return;
-            }
+            lessonTemplate.SetActive(false);
+        }
+    }
+
+    private void CacheModuleTemplate()
+    {
+        if (moduleTemplateInstance != null || moduleListRoot == null || moduleListRoot.childCount == 0)
+        {
+            return;
         }
 
-        SetDetailText("All lessons in this module are locked.", string.Empty, string.Empty, string.Empty, string.Empty);
+        moduleTemplateInstance = moduleListRoot.GetChild(0).gameObject;
+    }
+
+    private int GetModuleChildOffset()
+    {
+        return moduleTemplateInstance != null && moduleListRoot != null && moduleListRoot.childCount > 0 && moduleListRoot.GetChild(0).gameObject == moduleTemplateInstance ? 1 : 0;
+    }
+
+    private GameObject GetLessonTemplate(Transform lessonsContainer)
+    {
+        if (lessonItemButtonPrefab != null)
+        {
+            return lessonItemButtonPrefab;
+        }
+
+        if (lessonsContainer != null && lessonsContainer.childCount > 0)
+        {
+            return lessonsContainer.GetChild(0).gameObject;
+        }
+
+        return null;
+    }
+
+    private void SelectFirstLessonInModule(int moduleIndex)
+    {
+        if (selectedCourse == null || selectedCourse.modules == null || moduleIndex < 0 || moduleIndex >= selectedCourse.modules.Count)
+        {
+            return;
+        }
+
+        CourseModuleData module = selectedCourse.modules[moduleIndex];
+        if (module.lessons == null || module.lessons.Count == 0)
+        {
+            if (lessonContentUI != null)
+            {
+                lessonContentUI.Clear();
+            }
+            return;
+        }
+
+        SelectLesson(moduleIndex, 0);
     }
 
     private void SelectLesson(int moduleIndex, int lessonIndex)
@@ -305,293 +456,42 @@ public class CourseScaffoldingUI : MonoBehaviour
 
         selectedModuleIndex = moduleIndex;
         selectedModule = module;
-
         selectedLessonIndex = lessonIndex;
         selectedLesson = module.lessons[lessonIndex];
-        selectedExercise = null;
 
-        PopulateExercises();
-        RefreshDetails();
+        if (lessonContentUI != null)
+        {
+            lessonContentUI.DisplayLesson(selectedLesson, selectedModule, selectedCourse);
+        }
+
+        RefreshVisibleModuleProgress();
     }
 
-    private void PopulateExercises()
+    private void HandleLessonCompleted(string courseId, string moduleId, string lessonId, string exerciseId)
     {
-        ClearList(exerciseListRoot);
+        RefreshVisibleModuleProgress();
+    }
 
-        if (selectedCourse == null || selectedModule == null || selectedLesson == null || selectedLesson.exercises == null)
+    private void RefreshVisibleModuleProgress()
+    {
+        if (selectedCourse == null || selectedCourse.modules == null || moduleListRoot == null)
         {
             return;
         }
 
-        foreach (CourseExerciseData exercise in selectedLesson.exercises)
+        int childOffset = GetModuleChildOffset();
+        int moduleCount = Mathf.Min(moduleListRoot.childCount - childOffset, selectedCourse.modules.Count);
+        for (int moduleIndex = 0; moduleIndex < moduleCount; moduleIndex++)
         {
-            bool completed = progressManager != null && progressManager.IsExerciseCompleted(selectedCourse.id, selectedModule.id, selectedLesson.id, exercise.id);
-            string title = completed ? "[Done] " + exercise.title : exercise.title;
-
-            GameObject item = CreateListItem(exerciseListRoot, GetPrefabForList(ListType.Exercise), title, false, () => SelectExercise(exercise), exerciseItemTextPath);
-            if (item != null)
-            {
-                generatedItems.Add(item);
-            }
-        }
-
-        if (selectedLesson.exercises.Count > 0)
-        {
-            SelectExercise(selectedLesson.exercises[0]);
+            Transform moduleItem = moduleListRoot.GetChild(moduleIndex + childOffset);
+            UpdateModuleProgressUI(moduleItem.gameObject, selectedCourse.modules[moduleIndex]);
+            RefreshLessonStatusesForModule(moduleItem.gameObject, selectedCourse.modules[moduleIndex], moduleIndex);
         }
     }
 
-    private void SelectExercise(CourseExerciseData exercise)
+    private void RefreshLessonStatusesForModule(GameObject moduleItem, CourseModuleData module, int moduleIndex)
     {
-        selectedExercise = exercise;
-        RefreshDetails();
-    }
-
-    private void RefreshDetails()
-    {
-        if (selectedCourse == null || selectedModule == null || selectedLesson == null)
-        {
-            SetDetailText(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
-            return;
-        }
-
-        string breadcrumb = selectedCourse.title + " / " + selectedModule.title + " / " + selectedLesson.title;
-
-        string progress = "0%";
-        if (progressManager != null)
-        {
-            float percent = progressManager.GetLessonCompletionPercent(selectedCourse, selectedModule, selectedLesson) * 100f;
-            progress = percent.ToString("F0") + "%";
-        }
-
-        string exerciseInfo = selectedExercise != null
-            ? selectedExercise.title + " (Required score: " + selectedExercise.requiredScore + ")"
-            : "No exercise selected";
-
-        SetDetailText(breadcrumb, selectedLesson.title, selectedLesson.description, selectedLesson.objective, "Lesson Progress: " + progress);
-
-        if (selectedExerciseText != null)
-        {
-            selectedExerciseText.text = exerciseInfo;
-        }
-
-        if (nextLessonButton != null)
-        {
-            bool canAdvance = progressManager != null && progressManager.IsLessonCompleted(selectedCourse, selectedModule, selectedLesson);
-            nextLessonButton.interactable = canAdvance;
-        }
-    }
-
-    private void OnPlayExerciseClicked()
-    {
-        if (selectedExercise == null || beatmapLibrary == null || beatmapPlayer == null)
-        {
-            return;
-        }
-
-        BeatmapData beatmap = null;
-
-        if (!string.IsNullOrEmpty(selectedExercise.beatmapTitle))
-        {
-            beatmap = beatmapLibrary.GetBeatmapByTitle(selectedExercise.beatmapTitle);
-        }
-
-        if (beatmap == null && !string.IsNullOrEmpty(selectedExercise.beatmapJsonPath))
-        {
-            foreach (BeatmapData item in beatmapLibrary.Beatmaps)
-            {
-                if (item != null && !string.IsNullOrEmpty(item.jsonFilePath) && item.jsonFilePath.EndsWith(selectedExercise.beatmapJsonPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    beatmap = item;
-                    break;
-                }
-            }
-        }
-
-        if (beatmap == null)
-        {
-            Debug.LogWarning("[CourseScaffoldingUI] Could not find beatmap for exercise: " + selectedExercise.title);
-            return;
-        }
-
-        beatmapPlayer.LoadBeatmap(beatmap);
-    }
-
-    private void OnCompleteExerciseClicked()
-    {
-        if (selectedCourse == null || selectedModule == null || selectedLesson == null || selectedExercise == null || progressManager == null)
-        {
-            return;
-        }
-
-        progressManager.MarkExerciseCompleted(selectedCourse.id, selectedModule.id, selectedLesson.id, selectedExercise.id, selectedExercise.requiredScore);
-
-        if (useModuleAccordionSidebar)
-        {
-            PopulateModules();
-            SelectLesson(selectedModuleIndex, selectedLessonIndex);
-        }
-        else
-        {
-            PopulateLessons();
-            SelectLesson(selectedModuleIndex, selectedLessonIndex);
-        }
-    }
-
-    private void OnNextLessonClicked()
-    {
-        if (selectedCourse == null || selectedCourse.modules == null)
-        {
-            return;
-        }
-
-        for (int moduleIndex = selectedModuleIndex; moduleIndex < selectedCourse.modules.Count; moduleIndex++)
-        {
-            CourseModuleData module = selectedCourse.modules[moduleIndex];
-            if (module.lessons == null)
-            {
-                continue;
-            }
-
-            int startLesson = moduleIndex == selectedModuleIndex ? selectedLessonIndex + 1 : 0;
-            for (int lessonIndex = startLesson; lessonIndex < module.lessons.Count; lessonIndex++)
-            {
-                bool unlocked = progressManager == null || progressManager.IsLessonUnlocked(selectedCourse, moduleIndex, lessonIndex);
-                if (unlocked)
-                {
-                    SelectLesson(moduleIndex, lessonIndex);
-                    return;
-                }
-            }
-        }
-    }
-
-    private bool TrySelectFirstUnlockedLesson()
-    {
-        if (selectedCourse == null || selectedCourse.modules == null)
-        {
-            return false;
-        }
-
-        for (int moduleIndex = 0; moduleIndex < selectedCourse.modules.Count; moduleIndex++)
-        {
-            CourseModuleData module = selectedCourse.modules[moduleIndex];
-            if (module.lessons == null)
-            {
-                continue;
-            }
-
-            for (int lessonIndex = 0; lessonIndex < module.lessons.Count; lessonIndex++)
-            {
-                bool unlocked = progressManager == null || progressManager.IsLessonUnlocked(selectedCourse, moduleIndex, lessonIndex);
-                if (unlocked)
-                {
-                    SelectLesson(moduleIndex, lessonIndex);
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private void SelectFirstUnlockedLessonInModule(int moduleIndex)
-    {
-        if (selectedCourse == null || selectedCourse.modules == null || moduleIndex < 0 || moduleIndex >= selectedCourse.modules.Count)
-        {
-            return;
-        }
-
-        CourseModuleData module = selectedCourse.modules[moduleIndex];
-        if (module.lessons == null)
-        {
-            return;
-        }
-
-        for (int i = 0; i < module.lessons.Count; i++)
-        {
-            bool unlocked = progressManager == null || progressManager.IsLessonUnlocked(selectedCourse, moduleIndex, i);
-            if (unlocked)
-            {
-                SelectLesson(moduleIndex, i);
-                return;
-            }
-        }
-
-        SetDetailText("All lessons in this module are locked.", string.Empty, string.Empty, string.Empty, string.Empty);
-        ClearList(exerciseListRoot);
-    }
-
-    private void ConfigureModuleAccordionItem(GameObject moduleItem, CourseModuleData module, int moduleIndex)
-    {
-        if (moduleItem == null || module == null)
-        {
-            return;
-        }
-
-        SetItemTextByPath(moduleItem.transform, moduleTitleTextPath, module.title);
-
-        float moduleProgress = GetModuleCompletionPercent(selectedCourse, module);
-        SetModuleProgressUI(moduleItem.transform, moduleProgress);
-
-        Transform headerTransform = FindByPathOrSelf(moduleItem.transform, moduleHeaderButtonPath);
-        Button headerButton = null;
-
-        if (headerTransform != null)
-        {
-            headerButton = headerTransform.GetComponent<Button>();
-            if (headerButton == null)
-            {
-                headerButton = headerTransform.GetComponentInChildren<Button>(true);
-            }
-        }
-
-        // Fallback: if configured path is wrong, bind to first button in this module item.
-        if (headerButton == null)
-        {
-            headerButton = moduleItem.GetComponentInChildren<Button>(true);
-            if (headerButton != null)
-            {
-                Debug.LogWarning($"[CourseScaffoldingUI] Header button path '{moduleHeaderButtonPath}' not found. Using fallback button '{headerButton.name}' for module '{module.title}'.");
-            }
-        }
-        
-        if (headerButton != null)
-        {
-            headerButton.onClick.RemoveAllListeners();
-            UIAccordionElement accordionElement = moduleItem.GetComponent<UIAccordionElement>();
-            if (accordionElement != null)
-            {
-                headerButton.onClick.AddListener(() =>
-                {
-                    bool nextState = !accordionElement.isOn;
-                    if (!allowCollapseExpandedModule && !nextState)
-                    {
-                        nextState = true;
-                    }
-
-                    accordionElement.isOn = nextState;
-                    expandedModuleIndex = nextState ? moduleIndex : -1;
-
-                    if (nextState && autoSelectLessonWhenModuleExpanded)
-                    {
-                        SelectFirstUnlockedLessonInModule(moduleIndex);
-                    }
-                });
-            }
-            else
-            {
-                headerButton.onClick.AddListener(() => ToggleModuleAccordion(moduleIndex));
-            }
-
-            Debug.Log($"[CourseScaffoldingUI] Module header button wired for module '{module.title}'");
-        }
-        else
-        {
-            Debug.LogWarning($"[CourseScaffoldingUI] Could not find Button component on or under Header path '{moduleHeaderButtonPath}' for module '{module.title}'");
-        }
-
-        if (!useModuleAccordionSidebar)
+        if (moduleItem == null || module == null || module.lessons == null)
         {
             return;
         }
@@ -599,320 +499,196 @@ public class CourseScaffoldingUI : MonoBehaviour
         Transform lessonsContainer = FindByPathStrict(moduleItem.transform, moduleLessonsContainerPath);
         if (lessonsContainer == null)
         {
-            Debug.LogWarning("[CourseScaffoldingUI] Module lessons container not found for module prefab. Check moduleLessonsContainerPath.");
             return;
         }
 
-        bool expanded = moduleIndex == expandedModuleIndex;
-
-        UIAccordionElement itemAccordionElement = moduleItem.GetComponent<UIAccordionElement>();
-        if (itemAccordionElement != null)
+        int lessonCount = Mathf.Min(lessonsContainer.childCount, module.lessons.Count);
+        for (int lessonIndex = 0; lessonIndex < lessonCount; lessonIndex++)
         {
-            itemAccordionElement.isOn = expanded;
+            UpdateLessonStatusUI(lessonsContainer.GetChild(lessonIndex).gameObject, module, module.lessons[lessonIndex], lessonIndex);
         }
-        else
+    }
+
+    private void UpdateLessonStatusUI(GameObject lessonItem, CourseModuleData module, CourseLessonData lesson, int lessonIndex)
+    {
+        if (lessonItem == null || selectedCourse == null || module == null || lesson == null)
         {
-            lessonsContainer.gameObject.SetActive(expanded);
-            if (!expanded)
+            return;
+        }
+
+        bool completed = progressManager != null && progressManager.IsLessonCompleted(selectedCourse, module, lesson);
+        bool unlocked = progressManager == null || progressManager.IsLessonUnlocked(selectedCourse, FindModuleIndex(module), lessonIndex);
+        bool locked = !unlocked;
+
+        string statusLabel = completed ? "Completed" : (unlocked ? "Incomplete" : "Locked");
+        Color statusColor = completed ? new Color(0.45f, 0.9f, 0.55f) : (unlocked ? new Color(0.95f, 0.82f, 0.35f) : new Color(0.75f, 0.75f, 0.75f));
+
+        Button button = lessonItem.GetComponent<Button>();
+        if (button == null)
+        {
+            button = lessonItem.GetComponentInChildren<Button>(true);
+        }
+
+        if (button != null)
+        {
+            button.interactable = !locked;
+        }
+
+        CanvasGroup canvasGroup = lessonItem.GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+        {
+            canvasGroup = lessonItem.GetComponentInChildren<CanvasGroup>(true);
+        }
+
+        if (canvasGroup != null)
+        {
+            canvasGroup.interactable = !locked;
+            canvasGroup.blocksRaycasts = !locked;
+        }
+
+        Transform statusTransform = FindByPathOrSelf(lessonItem.transform, lessonStatusTextPath);
+        if (statusTransform == null)
+        {
+            statusTransform = FindByPathOrSelf(lessonItem.transform, "Status");
+        }
+
+        if (statusTransform != null)
+        {
+            TMP_Text tmp = statusTransform.GetComponent<TMP_Text>();
+            if (tmp != null)
             {
+                tmp.text = statusLabel;
+                tmp.color = statusColor;
+                return;
+            }
+
+            Text uiText = statusTransform.GetComponent<Text>();
+            if (uiText != null)
+            {
+                uiText.text = statusLabel;
+                uiText.color = statusColor;
                 return;
             }
         }
 
-        ClearList(lessonsContainer);
-        if (module.lessons == null)
+        SetItemTextByPath(lessonItem.transform, lessonItemTextPath, $"{lesson.title}  [{statusLabel}]");
+    }
+
+    private int FindModuleIndex(CourseModuleData module)
+    {
+        if (selectedCourse == null || selectedCourse.modules == null || module == null)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < selectedCourse.modules.Count; i++)
+        {
+            if (selectedCourse.modules[i] == module)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private void UpdateModuleProgressUI(GameObject moduleItem, CourseModuleData module)
+    {
+        if (moduleItem == null || module == null)
         {
             return;
         }
 
-        for (int lessonIndex = 0; lessonIndex < module.lessons.Count; lessonIndex++)
-        {
-            CourseLessonData lesson = module.lessons[lessonIndex];
-            bool unlocked = progressManager == null || progressManager.IsLessonUnlocked(selectedCourse, moduleIndex, lessonIndex);
-            bool completed = progressManager != null && progressManager.IsLessonCompleted(selectedCourse, module, lesson);
-            string lessonTitle = BuildLessonLabel(lesson.title, unlocked, completed);
-
-            int capturedLessonIndex = lessonIndex;
-            CreateListItem(
-                lessonsContainer,
-                GetPrefabForList(ListType.Lesson),
-                lessonTitle,
-                !unlocked,
-                () =>
-                {
-                    if (unlocked)
-                    {
-                        SelectLesson(moduleIndex, capturedLessonIndex);
-                    }
-                },
-                lessonItemTextPath);
-        }
-    }
-
-    private string BuildLessonLabel(string lessonTitle, bool unlocked, bool completed)
-    {
-        if (!unlocked)
-        {
-            return "[Locked] " + lessonTitle;
-        }
-
-        if (completed)
-        {
-            return "[Done] " + lessonTitle;
-        }
-
-        return lessonTitle;
-    }
-
-    private float GetModuleCompletionPercent(DrumCourseData course, CourseModuleData module)
-    {
-        if (progressManager == null || course == null || module == null || module.lessons == null || module.lessons.Count == 0)
-        {
-            return 0f;
-        }
-
+        int totalLessons = module.lessons != null ? module.lessons.Count : 0;
         int completedLessons = 0;
-        foreach (CourseLessonData lesson in module.lessons)
+
+        if (progressManager != null && selectedCourse != null && module.lessons != null)
         {
-            if (progressManager.IsLessonCompleted(course, module, lesson))
+            for (int i = 0; i < module.lessons.Count; i++)
             {
-                completedLessons++;
-            }
-        }
-
-        return (float)completedLessons / module.lessons.Count;
-    }
-
-    private void SetModuleProgressUI(Transform moduleItemTransform, float progress)
-    {
-        progress = Mathf.Clamp01(progress);
-
-        if (!string.IsNullOrEmpty(moduleProgressSliderPath))
-        {
-            Transform sliderTransform = moduleItemTransform.Find(moduleProgressSliderPath);
-            if (sliderTransform != null)
-            {
-                Slider slider = sliderTransform.GetComponent<Slider>();
-                if (slider != null)
+                CourseLessonData lesson = module.lessons[i];
+                if (lesson != null && progressManager.IsLessonCompleted(selectedCourse, module, lesson))
                 {
-                    slider.value = progress;
+                    completedLessons++;
                 }
             }
         }
 
-        if (!string.IsNullOrEmpty(moduleProgressFillImagePath))
+        float progress01 = totalLessons > 0 ? (float)completedLessons / totalLessons : 0f;
+
+        Transform progressBarTransform = FindByPathOrSelf(moduleItem.transform, moduleProgressBarPath);
+        if (progressBarTransform == null)
         {
-            Transform fillTransform = moduleItemTransform.Find(moduleProgressFillImagePath);
-            if (fillTransform != null)
+            progressBarTransform = FindByPathOrSelf(moduleItem.transform, "header/RawImage");
+        }
+
+        RawImage progressBar = progressBarTransform != null ? progressBarTransform.GetComponent<RawImage>() : null;
+        if (progressBar != null)
+        {
+            RectTransform barRect = progressBar.rectTransform;
+            int key = barRect.GetInstanceID();
+            if (!progressBarBaseWidths.ContainsKey(key))
             {
-                Image fillImage = fillTransform.GetComponent<Image>();
-                if (fillImage != null)
+                progressBarBaseWidths[key] = Mathf.Max(0f, barRect.sizeDelta.x);
+            }
+
+            float baseWidth = progressBarBaseWidths[key];
+            barRect.sizeDelta = new Vector2(baseWidth * progress01, barRect.sizeDelta.y);
+        }
+
+        Transform progressTextTransform = FindByPathOrSelf(moduleItem.transform, moduleProgressTextPath);
+        if (progressTextTransform == null)
+        {
+            progressTextTransform = FindByPathOrSelf(moduleItem.transform, "header/RawImage/Progress text");
+        }
+
+        string progressLabel = $"{completedLessons}/{totalLessons}";
+        if (progressTextTransform != null)
+        {
+            RectTransform textRect = progressTextTransform as RectTransform;
+            if (textRect != null)
+            {
+                textRect.anchorMin = new Vector2(1f, textRect.anchorMin.y);
+                textRect.anchorMax = new Vector2(1f, textRect.anchorMax.y);
+                textRect.pivot = new Vector2(1f, textRect.pivot.y);
+                textRect.anchoredPosition = new Vector2(-8f, textRect.anchoredPosition.y);
+            }
+
+            TMP_Text tmp = progressTextTransform.GetComponent<TMP_Text>();
+            if (tmp != null)
+            {
+                tmp.text = progressLabel;
+            }
+            else
+            {
+                Text uiText = progressTextTransform.GetComponent<Text>();
+                if (uiText != null)
                 {
-                    fillImage.fillAmount = progress;
+                    uiText.text = progressLabel;
                 }
             }
-        }
-
-        if (!string.IsNullOrEmpty(moduleProgressTextPath))
-        {
-            string percent = Mathf.RoundToInt(progress * 100f) + "%";
-            SetItemTextByPath(moduleItemTransform, moduleProgressTextPath, percent);
-        }
-    }
-
-    private void SetItemTextByPath(Transform root, string path, string value)
-    {
-        if (root == null)
-        {
-            return;
-        }
-
-        Transform target = FindByPathOrSelf(root, path);
-        if (target == null)
-        {
-            TMP_Text fallbackTmp = FindBestTitleText(root);
-            if (fallbackTmp != null)
-            {
-                fallbackTmp.text = value;
-                return;
-            }
-
-            Text fallbackText = FindBestLegacyTitleText(root);
-            if (fallbackText != null)
-            {
-                fallbackText.text = value;
-            }
-
-            return;
-        }
-
-        TMP_Text tmpText = target.GetComponent<TMP_Text>();
-        if (tmpText != null)
-        {
-            tmpText.text = value;
-            return;
-        }
-
-        Text text = target.GetComponent<Text>();
-        if (text != null)
-        {
-            text.text = value;
-        }
-    }
-
-    private TMP_Text FindBestTitleText(Transform root)
-    {
-        if (root == null)
-        {
-            return null;
-        }
-
-        string[] preferredNames = { "Title", "HeaderText", "Label", "Text (TMP)", "Text" };
-        foreach (string childName in preferredNames)
-        {
-            Transform t = root.Find(childName);
-            if (t != null)
-            {
-                TMP_Text named = t.GetComponent<TMP_Text>();
-                if (named != null)
-                {
-                    return named;
-                }
-            }
-        }
-
-        TMP_Text[] all = root.GetComponentsInChildren<TMP_Text>(true);
-        foreach (TMP_Text text in all)
-        {
-            string n = text.name;
-            if (n.IndexOf("title", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("label", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return text;
-            }
-        }
-
-        return all.Length > 0 ? all[0] : null;
-    }
-
-    private Text FindBestLegacyTitleText(Transform root)
-    {
-        if (root == null)
-        {
-            return null;
-        }
-
-        Text[] all = root.GetComponentsInChildren<Text>(true);
-        foreach (Text text in all)
-        {
-            string n = text.name;
-            if (n.IndexOf("title", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("label", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return text;
-            }
-        }
-
-        return all.Length > 0 ? all[0] : null;
-    }
-
-    private Transform FindByPathOrSelf(Transform root, string path)
-    {
-        if (root == null)
-        {
-            return null;
-        }
-
-        if (string.IsNullOrEmpty(path))
-        {
-            return root;
-        }
-
-        Transform child = root.Find(path);
-        return child;
-    }
-
-    private Transform FindByPathStrict(Transform root, string path)
-    {
-        if (root == null || string.IsNullOrEmpty(path))
-        {
-            return null;
-        }
-
-        return root.Find(path);
-    }
-
-    private void ToggleModuleAccordion(int moduleIndex)
-    {
-        if (!useModuleAccordionSidebar)
-        {
-            SelectModule(moduleIndex);
-            return;
-        }
-
-        bool isSameExpandedModule = expandedModuleIndex == moduleIndex;
-        if (isSameExpandedModule && allowCollapseExpandedModule)
-        {
-            expandedModuleIndex = -1;
-            selectedModuleIndex = moduleIndex;
-            selectedModule = selectedCourse != null && selectedCourse.modules != null && moduleIndex >= 0 && moduleIndex < selectedCourse.modules.Count
-                ? selectedCourse.modules[moduleIndex]
-                : null;
-            PopulateModules();
-            return;
-        }
-
-        expandedModuleIndex = moduleIndex;
-        selectedModuleIndex = moduleIndex;
-        selectedModule = selectedCourse != null && selectedCourse.modules != null && moduleIndex >= 0 && moduleIndex < selectedCourse.modules.Count
-            ? selectedCourse.modules[moduleIndex]
-            : null;
-
-        PopulateModules();
-
-        if (autoSelectLessonWhenModuleExpanded)
-        {
-            SelectFirstUnlockedLessonInModule(moduleIndex);
-        }
-    }
-
-    private void OnSwitchToCourseClicked()
-    {
-        if (gameModeManager != null)
-        {
-            gameModeManager.SwitchToCourseMode();
-        }
-    }
-
-    private void OnBackToPracticeClicked()
-    {
-        if (gameModeManager != null)
-        {
-            gameModeManager.SetMode(true);
         }
     }
 
     private enum ListType
     {
-        Course,
         Module,
-        Lesson,
-        Exercise
+        Lesson
     }
 
     private GameObject GetPrefabForList(ListType listType)
     {
         GameObject typedPrefab = listType switch
         {
-            ListType.Course => courseItemButtonPrefab,
             ListType.Module => moduleItemButtonPrefab,
             ListType.Lesson => lessonItemButtonPrefab,
-            ListType.Exercise => exerciseItemButtonPrefab,
             _ => null
         };
 
         return typedPrefab != null ? typedPrefab : listItemButtonPrefab;
     }
 
-    private GameObject CreateListItem(Transform root, GameObject prefab, string title, bool disabled, Action onClick, string preferredTextPath = "")
+    private GameObject CreateListItem(Transform root, GameObject prefab, string title, bool disabled, Action onClick, string preferredTextPath = "", bool normalizeUITransform = false)
     {
         if (root == null || prefab == null)
         {
@@ -921,13 +697,30 @@ public class CourseScaffoldingUI : MonoBehaviour
 
         GameObject item = Instantiate(prefab, root);
         item.SetActive(true);
-
-        if (normalizeSpawnedItemUIState)
+        if (normalizeUITransform)
         {
-            NormalizeSpawnedItemUI(item);
+            RectTransform itemRect = item.transform as RectTransform;
+            if (itemRect != null)
+            {
+                itemRect.localScale = Vector3.one;
+                itemRect.localRotation = Quaternion.identity;
+                itemRect.anchoredPosition3D = Vector3.zero;
+            }
+            else
+            {
+                item.transform.localScale = Vector3.one;
+                item.transform.localRotation = Quaternion.identity;
+                item.transform.localPosition = Vector3.zero;
+            }
         }
+        EnsureCloneUIComponentsEnabled(item);
 
         Button button = item.GetComponent<Button>();
+        if (button == null)
+        {
+            button = item.GetComponentInChildren<Button>(true);
+        }
+
         if (button != null)
         {
             button.interactable = !disabled;
@@ -959,80 +752,108 @@ public class CourseScaffoldingUI : MonoBehaviour
         return item;
     }
 
-    private void NormalizeSpawnedItemUI(GameObject item)
+    private void EnsureCloneUIComponentsEnabled(GameObject item)
     {
         if (item == null)
         {
             return;
         }
 
-        // Ensure all child GameObjects are active unless accordion logic later collapses a specific container.
-        Transform[] allChildren = item.GetComponentsInChildren<Transform>(true);
-        foreach (Transform child in allChildren)
+        Behaviour[] behaviours = item.GetComponentsInChildren<Behaviour>(true);
+        foreach (Behaviour behaviour in behaviours)
         {
-            if (!child.gameObject.activeSelf)
+            if (behaviour != null && !behaviour.enabled)
             {
-                child.gameObject.SetActive(true);
+                behaviour.enabled = true;
             }
-        }
-
-        // Reset common UI component states that can be unintentionally saved disabled in prefab overrides.
-        CanvasGroup[] canvasGroups = item.GetComponentsInChildren<CanvasGroup>(true);
-        foreach (CanvasGroup group in canvasGroups)
-        {
-            group.alpha = 1f;
-            group.interactable = true;
-            group.blocksRaycasts = true;
-            group.enabled = true;
-        }
-
-        Graphic[] graphics = item.GetComponentsInChildren<Graphic>(true);
-        foreach (Graphic graphic in graphics)
-        {
-            graphic.enabled = true;
         }
 
         Selectable[] selectables = item.GetComponentsInChildren<Selectable>(true);
         foreach (Selectable selectable in selectables)
         {
-            selectable.enabled = true;
-            selectable.interactable = true;
+            if (selectable != null)
+            {
+                selectable.interactable = true;
+            }
         }
 
-        Button[] buttons = item.GetComponentsInChildren<Button>(true);
-        foreach (Button button in buttons)
+        CanvasGroup[] canvasGroups = item.GetComponentsInChildren<CanvasGroup>(true);
+        foreach (CanvasGroup canvasGroup in canvasGroups)
         {
-            button.enabled = true;
-            button.interactable = true;
-        }
-
-        LayoutElement[] layoutElements = item.GetComponentsInChildren<LayoutElement>(true);
-        foreach (LayoutElement layoutElement in layoutElements)
-        {
-            layoutElement.enabled = true;
-            layoutElement.ignoreLayout = false;
-        }
-
-        VerticalLayoutGroup[] verticalLayouts = item.GetComponentsInChildren<VerticalLayoutGroup>(true);
-        foreach (VerticalLayoutGroup verticalLayout in verticalLayouts)
-        {
-            verticalLayout.enabled = true;
-        }
-
-        HorizontalLayoutGroup[] horizontalLayouts = item.GetComponentsInChildren<HorizontalLayoutGroup>(true);
-        foreach (HorizontalLayoutGroup horizontalLayout in horizontalLayouts)
-        {
-            horizontalLayout.enabled = true;
-        }
-
-        ContentSizeFitter[] contentSizeFitters = item.GetComponentsInChildren<ContentSizeFitter>(true);
-        foreach (ContentSizeFitter contentSizeFitter in contentSizeFitters)
-        {
-            contentSizeFitter.enabled = true;
+            if (canvasGroup != null)
+            {
+                canvasGroup.interactable = true;
+                canvasGroup.blocksRaycasts = true;
+            }
         }
     }
 
-    private void ClearList(Transform root)
+    private void SetItemTextByPath(Transform root, string path, string value)
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        Transform target = FindByPathOrSelf(root, path);
+        if (target == null)
+        {
+            TMP_Text fallbackTmp = root.GetComponentInChildren<TMP_Text>(true);
+            if (fallbackTmp != null)
+            {
+                fallbackTmp.text = value;
+                return;
+            }
+
+            Text fallbackText = root.GetComponentInChildren<Text>(true);
+            if (fallbackText != null)
+            {
+                fallbackText.text = value;
+            }
+
+            return;
+        }
+
+        TMP_Text tmpText = target.GetComponent<TMP_Text>();
+        if (tmpText != null)
+        {
+            tmpText.text = value;
+            return;
+        }
+
+        Text text = target.GetComponent<Text>();
+        if (text != null)
+        {
+            text.text = value;
+        }
+    }
+
+    private Transform FindByPathOrSelf(Transform root, string path)
+    {
+        if (root == null)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(path))
+        {
+            return root;
+        }
+
+        return root.Find(path);
+    }
+
+    private Transform FindByPathStrict(Transform root, string path)
+    {
+        if (root == null || string.IsNullOrEmpty(path))
+        {
+            return null;
+        }
+
+        return root.Find(path);
+    }
+
+    private void ClearList(Transform root, GameObject preserveItem = null)
     {
         if (root == null)
         {
@@ -1041,35 +862,18 @@ public class CourseScaffoldingUI : MonoBehaviour
 
         for (int i = root.childCount - 1; i >= 0; i--)
         {
-            Destroy(root.GetChild(i).gameObject);
-        }
-    }
+            GameObject child = root.GetChild(i).gameObject;
+            if (preserveItem != null && child == preserveItem)
+            {
+                continue;
+            }
 
-    private void SetDetailText(string breadcrumb, string title, string description, string objective, string progress)
-    {
-        if (breadcrumbText != null)
-        {
-            breadcrumbText.text = breadcrumb;
+            Destroy(child);
         }
 
-        if (lessonTitleText != null)
+        if (preserveItem != null)
         {
-            lessonTitleText.text = title;
-        }
-
-        if (lessonDescriptionText != null)
-        {
-            lessonDescriptionText.text = description;
-        }
-
-        if (lessonObjectiveText != null)
-        {
-            lessonObjectiveText.text = objective;
-        }
-
-        if (lessonProgressText != null)
-        {
-            lessonProgressText.text = progress;
+            preserveItem.transform.SetAsFirstSibling();
         }
     }
 }

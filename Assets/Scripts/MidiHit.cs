@@ -21,10 +21,12 @@ public class MidiHit : MonoBehaviour
 {
     public List<MidiHitZone> mappings = new List<MidiHitZone>();
 
-    public float hitVisualDuration = 0.5f;
-    public float velocityToEmission = 2.0f;
-    // Per-hit multiplier to push emission into a stronger HDR range
-    public float emissionBoost = 8.0f;
+    [Header("Flash Safety")]
+    [Range(0.05f, 0.4f)] public float hitVisualDuration = 0.18f;
+    [Range(0.1f, 2f)] public float velocityToEmission = 1.0f;
+    [Range(0f, 1f)] public float minimumEmissionIntensity = 0.2f;
+    [Range(0.2f, 3f)] public float emissionBoost = 1.1f;
+    [Range(0.2f, 3f)] public float maxEmissionIntensity = 1.4f;
     public float globalLatencyOffset = 0f;
 
     Dictionary<int, MidiHitZone> mapLookup;
@@ -237,9 +239,8 @@ public class MidiHit : MonoBehaviour
 
     IEnumerator PulseEmissionForMaterials(List<Material> mats, float velocity01, MidiHitZone zoneRef)
     {
-        // Use HDR emission so it shows up even on bright albedo.
-        // Tune velocityToEmission and emissionBoost in the inspector to increase visibility.
-        float maxIntensity = Mathf.Lerp(1f, velocityToEmission * emissionBoost, velocity01);
+        float targetIntensity = Mathf.Lerp(minimumEmissionIntensity, velocityToEmission * emissionBoost, velocity01);
+        float maxIntensity = Mathf.Clamp(targetIntensity, minimumEmissionIntensity, maxEmissionIntensity);
 
         // Extra logging for toms
         if (zoneRef.midiNote == 48 || zoneRef.midiNote == 45 || zoneRef.midiNote == 43)

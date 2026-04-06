@@ -15,9 +15,14 @@ public class GameModeManager : MonoBehaviour
         Course
     }
 
-    [Header("Mode Toggle Button")]
+    [Header("Legacy Mode Toggle Button")]
     [SerializeField] private Button modeToggleButton;
     [SerializeField] private TMPro.TextMeshProUGUI modeButtonText;
+
+    [Header("Mode Icon Buttons")]
+    [SerializeField] private Button freePlayModeButton; // Drum free mode (import beatmaps and play)
+    [SerializeField] private Button gameplayModeButton; // Gameplay mode (scoring and hits)
+    [SerializeField] private Button learnModeButton; // Learn/course mode
     
     [Header("Learning Mode UI (Hidden in Gameplay)")]
     [SerializeField] private GameObject timelinePanel; // Timeline slider and controls
@@ -51,11 +56,30 @@ public class GameModeManager : MonoBehaviour
             beatmapPlayer = FindFirstObjectByType<BeatmapPlayer>();
         }
         
-        // Setup toggle button
+        // Setup legacy toggle button (optional)
         if (modeToggleButton != null)
         {
             modeToggleButton.onClick.RemoveAllListeners();
             modeToggleButton.onClick.AddListener(ToggleMode);
+        }
+
+        // Setup dedicated mode icon buttons
+        if (freePlayModeButton != null)
+        {
+            freePlayModeButton.onClick.RemoveAllListeners();
+            freePlayModeButton.onClick.AddListener(SwitchToFreePlayMode);
+        }
+
+        if (gameplayModeButton != null)
+        {
+            gameplayModeButton.onClick.RemoveAllListeners();
+            gameplayModeButton.onClick.AddListener(SwitchToGameplayMode);
+        }
+
+        if (learnModeButton != null)
+        {
+            learnModeButton.onClick.RemoveAllListeners();
+            learnModeButton.onClick.AddListener(SwitchToCourseMode);
         }
         
         // Initialize mode
@@ -99,6 +123,30 @@ public class GameModeManager : MonoBehaviour
         if (currentMode != targetMode)
         {
             currentMode = targetMode;
+            UpdateModeUI(true);
+        }
+    }
+
+    /// <summary>
+    /// Explicitly enter free play mode.
+    /// </summary>
+    public void SwitchToFreePlayMode()
+    {
+        if (currentMode != AppMode.FreePlay)
+        {
+            currentMode = AppMode.FreePlay;
+            UpdateModeUI(true);
+        }
+    }
+
+    /// <summary>
+    /// Explicitly enter gameplay mode.
+    /// </summary>
+    public void SwitchToGameplayMode()
+    {
+        if (currentMode != AppMode.Gameplay)
+        {
+            currentMode = AppMode.Gameplay;
             UpdateModeUI(true);
         }
     }
@@ -149,7 +197,17 @@ public class GameModeManager : MonoBehaviour
         // Update toggle button text
         if (modeButtonText != null)
         {
-            if (includeCourseInToggle)
+            // Keep legacy toggle text meaningful when toggle button is still used in scene.
+            if (modeToggleButton == null)
+            {
+                modeButtonText.text = currentMode switch
+                {
+                    AppMode.FreePlay => "FreePlay",
+                    AppMode.Gameplay => "Gameplay",
+                    _ => "Learn"
+                };
+            }
+            else if (includeCourseInToggle)
             {
                 modeButtonText.text = currentMode switch
                 {

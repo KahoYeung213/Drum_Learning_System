@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI.Tweens;
+using UnityEngine.EventSystems;
 using System;
 using System.Collections;
 
@@ -10,10 +11,18 @@ namespace UnityEngine.UI
 	public class UIAccordionElement : Toggle {
 
 		[SerializeField] private float m_MinHeight = 18f;
+		[SerializeField] private bool m_AutoMinHeightFromHeader = true;
+		[SerializeField] private RectTransform m_HeaderTransform;
+		[SerializeField] private float m_HeaderPadding = 6f;
+		[SerializeField] private bool m_EnableHoverColor = false;
+		[SerializeField] private Color m_HoverColor = Color.white;
+		[SerializeField] private Graphic m_HoverTargetGraphic;
 		
 		private UIAccordion m_Accordion;
 		private RectTransform m_RectTransform;
 		private LayoutElement m_LayoutElement;
+		private Color m_DefaultGraphicColor = Color.white;
+		private bool m_HasDefaultGraphicColor = false;
 		
 		[NonSerialized]
 		private readonly TweenRunner<FloatTween> m_FloatTweenRunner;
@@ -34,7 +43,30 @@ namespace UnityEngine.UI
 			this.m_Accordion = this.gameObject.GetComponentInParent<UIAccordion>();
 			this.m_RectTransform = this.transform as RectTransform;
 			this.m_LayoutElement = this.gameObject.GetComponent<LayoutElement>();
+			if (this.m_HoverTargetGraphic == null)
+			{
+				this.m_HoverTargetGraphic = this.targetGraphic;
+			}
+			if (this.m_HoverTargetGraphic != null)
+			{
+				this.m_DefaultGraphicColor = this.m_HoverTargetGraphic.color;
+				this.m_HasDefaultGraphicColor = true;
+			}
+			if (this.m_HeaderTransform == null)
+			{
+				Transform headerCandidate = this.transform.Find("Title");
+				if (headerCandidate != null)
+				{
+					this.m_HeaderTransform = headerCandidate as RectTransform;
+				}
+			}
 			this.onValueChanged.AddListener(OnValueChanged);
+		}
+
+		protected override void OnDisable()
+		{
+			this.RestoreDefaultHoverColor();
+			base.OnDisable();
 		}
 		
 		protected override void OnValidate()
@@ -52,6 +84,7 @@ namespace UnityEngine.UI
 			}
 			
 			LayoutElement le = this.gameObject.GetComponent<LayoutElement>();
+			float collapsedHeight = this.GetCollapsedHeight();
 			
 			if (le != null)
 			{
@@ -61,7 +94,7 @@ namespace UnityEngine.UI
 				}
 				else
 				{
-					le.preferredHeight = this.m_MinHeight;
+					le.preferredHeight = collapsedHeight;
 				}
 			}
 		}
@@ -81,20 +114,33 @@ namespace UnityEngine.UI
 				}
 				else
 				{
-					this.m_LayoutElement.preferredHeight = this.m_MinHeight;
+					this.m_LayoutElement.preferredHeight = this.GetCollapsedHeight();
 				}
 			}
 			else if (transition == UIAccordion.Transition.Tween)
 			{
 				if (state)
 				{
-					this.StartTween(this.m_MinHeight, this.GetExpandedHeight());
+					this.StartTween(this.GetCollapsedHeight(), this.GetExpandedHeight());
 				}
 				else
 				{
-					this.StartTween(this.m_RectTransform.rect.height, this.m_MinHeight);
+					this.StartTween(this.m_RectTransform.rect.height, this.GetCollapsedHeight());
 				}
 			}
+		}
+
+		protected float GetCollapsedHeight()
+		{
+			float collapsedHeight = this.m_MinHeight;
+			if (!this.m_AutoMinHeightFromHeader || this.m_HeaderTransform == null)
+				return collapsedHeight;
+
+			float headerPreferred = LayoutUtility.GetPreferredHeight(this.m_HeaderTransform);
+			if (headerPreferred <= 0f)
+				headerPreferred = this.m_HeaderTransform.rect.height;
+
+			return Mathf.Max(collapsedHeight, headerPreferred + this.m_HeaderPadding);
 		}
 		
 		protected float GetExpandedHeight()
@@ -131,6 +177,36 @@ namespace UnityEngine.UI
 				return;
 				
 			this.m_LayoutElement.preferredHeight = height;
+		}
+
+		public override void OnPointerEnter(PointerEventData eventData)
+		{
+			base.OnPointerEnter(eventData);
+
+			if (!this.m_EnableHoverColor)
+				return;
+
+			if (this.m_HoverTargetGraphic == null)
+				return;
+
+			this.m_HoverTargetGraphic.color = this.m_HoverColor;
+		}
+
+		public override void OnPointerExit(PointerEventData eventData)
+		{
+			base.OnPointerExit(eventData);
+			this.RestoreDefaultHoverColor();
+		}
+
+		private void RestoreDefaultHoverColor()
+		{
+			if (!this.m_EnableHoverColor)
+				return;
+
+			if (this.m_HoverTargetGraphic == null || !this.m_HasDefaultGraphicColor)
+				return;
+
+			this.m_HoverTargetGraphic.color = this.m_DefaultGraphicColor;
 		}
 	}
 }

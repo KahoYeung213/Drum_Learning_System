@@ -14,13 +14,16 @@ public class BeatmapPlayer : MonoBehaviour
     
     [Header("BPM Control")]
     [SerializeField] private TMP_InputField bpmInputField;
+    [SerializeField] private Button bpmDecreaseButton; // Optional: Decrease BPM by 1
+    [SerializeField] private Button bpmIncreaseButton; // Optional: Increase BPM by 1
     [SerializeField] private Button resetBpmButton; // Optional: Reset to original BPM
     [SerializeField] private TMP_Text currentBpmText; // Optional: Display current BPM
     [SerializeField] private float minBpmPercent = 25f; // Minimum % of original BPM
     [SerializeField] private float maxBpmPercent = 200f; // Maximum % of original BPM
     
     [Header("Metronome")]
-    [SerializeField] private Button metronomeButton;
+    [SerializeField] private Button metronomeButton; // Metronome icon button (opens/closes panel)
+    [SerializeField] private Toggle metronomeToggle; // Checkbox-style toggle
     [SerializeField] private GameObject speedPanel; // Panel shown when metronome is toggled
     [SerializeField] private AudioClip metronomeClickSound;
     [SerializeField] private AudioSource metronomeAudioSource;
@@ -38,6 +41,7 @@ public class BeatmapPlayer : MonoBehaviour
     private BeatmapData currentBeatmap;
     private bool isLoaded = false;
     private bool metronomeEnabled = false;
+    private bool isMetronomePanelOpen = false;
     private float nextBeatTime = 0f;
     private float beatInterval = 0f;
     private float currentSpeed = 1.0f;
@@ -142,6 +146,8 @@ public class BeatmapPlayer : MonoBehaviour
     
     void Start()
     {
+        ConfigureBpmInputClickTargets();
+
         // Setup volume slider
         if (volumeSlider != null)
         {
@@ -155,6 +161,18 @@ public class BeatmapPlayer : MonoBehaviour
         if (bpmInputField != null)
         {
             bpmInputField.onEndEdit.AddListener(OnBpmInputChanged);
+            bpmInputField.onValueChanged.AddListener(OnBpmInputTyping);
+        }
+
+        // Setup BPM arrow buttons
+        if (bpmDecreaseButton != null)
+        {
+            bpmDecreaseButton.onClick.AddListener(DecreaseBpmByOne);
+        }
+
+        if (bpmIncreaseButton != null)
+        {
+            bpmIncreaseButton.onClick.AddListener(IncreaseBpmByOne);
         }
         
         // Setup reset BPM button
@@ -175,8 +193,67 @@ public class BeatmapPlayer : MonoBehaviour
         // Setup metronome button
         if (metronomeButton != null)
         {
-            metronomeButton.onClick.AddListener(ToggleMetronome);
+            metronomeButton.onClick.AddListener(ToggleMetronomePanel);
             UpdateMetronomeButtonVisual();
+        }
+
+        // Setup metronome toggle (checkbox)
+        if (metronomeToggle != null)
+        {
+            metronomeToggle.SetIsOnWithoutNotify(metronomeEnabled);
+            metronomeToggle.onValueChanged.AddListener(SetMetronomeEnabled);
+        }
+
+        // Ensure BPM UI is populated from current values on startup.
+        if (bpmInputField != null)
+        {
+            bpmInputField.SetTextWithoutNotify(currentBpm.ToString("F0"));
+        }
+        UpdateBpmDisplay();
+    }
+
+    void ConfigureBpmInputClickTargets()
+    {
+        // Make sure BPM input remains editable.
+        if (bpmInputField == null)
+        {
+            if (currentBpmText != null)
+            {
+                currentBpmText.raycastTarget = false;
+            }
+            return;
+        }
+
+        bpmInputField.interactable = true;
+        bpmInputField.readOnly = false;
+
+        if (bpmInputField.textComponent != null)
+        {
+            bpmInputField.textComponent.raycastTarget = false;
+        }
+
+        if (bpmInputField.placeholder is Graphic placeholderGraphic)
+        {
+            placeholderGraphic.raycastTarget = false;
+        }
+
+        if (currentBpmText != null)
+        {
+            currentBpmText.raycastTarget = false;
+
+            // Also disable raycast on graphic parents of the overlay text (e.g. Image > Current BPM)
+            // until we reach the input field root. This prevents the overlay stack from stealing clicks.
+            Transform t = currentBpmText.transform.parent;
+            while (t != null && t != bpmInputField.transform)
+            {
+                Graphic parentGraphic = t.GetComponent<Graphic>();
+                if (parentGraphic != null)
+                {
+                    parentGraphic.raycastTarget = false;
+                }
+
+                t = t.parent;
+            }
         }
     }
     
@@ -249,6 +326,8 @@ public class BeatmapPlayer : MonoBehaviour
                 audioSource.clip = clip;
                 currentBeatmap = beatmap;
                 isLoaded = true;
+
+                InitializeBpmFromBeatmapMetadata();
                 
                 Debug.Log($"[BeatmapPlayer] ✓ Successfully loaded audio: {beatmap.title} ({clip.length:F2}s)");
                 Debug.Log($"[BeatmapPlayer] Audio is ready to play. Use Play button to start.");
@@ -477,8 +556,31 @@ public class BeatmapPlayer : MonoBehaviour
     
     public void ToggleMetronome()
     {
-        metronomeEnabled = !metronomeEnabled;
-        
+        SetMetronomeEnabled(!metronomeEnabled);
+    }
+
+    public void ToggleMetronomePanel()
+    {
+        SetMetronomePanelOpen(!isMetronomePanelOpen);
+    }
+
+    public void SetMetronomePanelOpen(bool isOpen)
+    {
+        isMetronomePanelOpen = isOpen;
+        UpdateSpeedPanelVisibility();
+    }
+
+    public void SetMetronomeEnabled(bool enabled)
+    {
+        if (metronomeEnabled == enabled)
+        {
+            UpdateMetronomeButtonVisual();
+            UpdateSpeedPanelVisibility();
+            return;
+        }
+
+        metronomeEnabled = enabled;
+
         if (metronomeEnabled)
         {
             InitializeMetronome();
@@ -488,16 +590,14 @@ public class BeatmapPlayer : MonoBehaviour
         {
             Debug.Log("[BeatmapPlayer] Metronome disabled");
         }
-        
+
         UpdateMetronomeButtonVisual();
-        
-        // Toggle speed panel visibility (only in Learning mode)
         UpdateSpeedPanelVisibility();
     }
     
     /// <summary>
-    /// Update speed panel visibility based on metronome state and game mode
-    /// Speed panel only visible when: metronome is ON AND in Learning mode (or no mode manager)
+    /// Update metronome panel visibility based on panel state and game mode.
+    /// Panel is visible only when opened AND in Learning mode (or no mode manager).
     /// </summary>
     public void UpdateSpeedPanelVisibility()
     {
@@ -506,8 +606,7 @@ public class BeatmapPlayer : MonoBehaviour
             // Check if we're in learning mode (or no mode manager exists)
             bool inLearningMode = gameModeManager == null || gameModeManager.IsLearningMode;
             
-            // Speed panel visible only if metronome enabled AND in learning mode
-            speedPanel.SetActive(metronomeEnabled && inLearningMode);
+            speedPanel.SetActive(isMetronomePanelOpen && inLearningMode);
         }
     }
     
@@ -566,6 +665,11 @@ public class BeatmapPlayer : MonoBehaviour
             colors.normalColor = metronomeEnabled ? metronomeActiveColor : metronomeInactiveColor;
             metronomeButton.colors = colors;
         }
+
+        if (metronomeToggle != null)
+        {
+            metronomeToggle.SetIsOnWithoutNotify(metronomeEnabled);
+        }
     }
     
     public void SetMetronomeVolume(float volume)
@@ -592,8 +696,27 @@ public class BeatmapPlayer : MonoBehaviour
             {
                 bpmInputField.SetTextWithoutNotify(currentBpm.ToString("F0"));
             }
+            UpdateBpmDisplay();
             Debug.LogWarning($"[BeatmapPlayer] Invalid BPM input: {text}");
         }
+    }
+
+    void OnBpmInputTyping(string text)
+    {
+        if (currentBpmText != null)
+        {
+            currentBpmText.text = text;
+        }
+    }
+
+    public void IncreaseBpmByOne()
+    {
+        SetBpm(currentBpm + 1f);
+    }
+
+    public void DecreaseBpmByOne()
+    {
+        SetBpm(currentBpm - 1f);
     }
     
     public void SetBpm(float newBpm)
@@ -647,8 +770,41 @@ public class BeatmapPlayer : MonoBehaviour
     {
         if (currentBpmText != null)
         {
-            currentBpmText.text = $"{currentBpm:F0} BPM ({currentSpeed:F2}x)";
+            if (bpmInputField != null)
+            {
+                currentBpmText.text = bpmInputField.text;
+            }
+            else
+            {
+                currentBpmText.text = $"{currentBpm:F0}";
+            }
         }
+    }
+
+    void InitializeBpmFromBeatmapMetadata()
+    {
+        originalBpm = currentBeatmap?.metadata?.bpm_avg ?? 120f;
+        if (originalBpm <= 0f)
+        {
+            originalBpm = 120f;
+        }
+
+        currentBpm = originalBpm;
+        currentSpeed = 1.0f;
+        beatInterval = 60f / currentBpm;
+
+        if (audioSource != null)
+        {
+            audioSource.pitch = currentSpeed;
+        }
+
+        if (bpmInputField != null)
+        {
+            bpmInputField.SetTextWithoutNotify(currentBpm.ToString("F0"));
+        }
+        UpdateBpmDisplay();
+
+        OnSpeedChanged?.Invoke(currentSpeed);
     }
     
     public float GetOriginalBpm() => originalBpm;

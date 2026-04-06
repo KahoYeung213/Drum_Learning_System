@@ -1,11 +1,63 @@
 {
   "courses": [
     {
-      "id": "drum-foundations",
+      "id": "Beginner",
       "title": "Drum Foundations",
       "description": "Build timing, coordination, and groove fundamentals.",
       "difficulty": "Beginner",
       "modules": [
+        {
+          "id": "module-drum-introduction",
+          "title": "Drum Introduction",
+          "description": "Get comfortable with the drum kit layout and foundational setup.",
+          "lessons": [
+            {
+              "id": "lesson-holding-drumsticks",
+              "title": "How to Hold Drumsticks",
+              "description": "Learn matched grip, fulcrum control, and relaxed motion.",
+              "objective": "Establish correct hand position and controlled rebound before rudiment practice.",
+              "learningObjectives": [
+                "Identify proper thumb and index fulcrum placement.",
+                "Demonstrate relaxed matched grip without excess tension.",
+                "Control rebound with even stick height in both hands.",
+                "Maintain balanced posture and wrist motion while striking."
+              ],
+              "exercises": [
+                {
+                  "id": "exercise-holding-sticks-1",
+                  "title": "Grip Setup - 60 BPM",
+                  "description": "Light stroke control while maintaining proper grip.",
+                  "beatmapTitle": "Single Strokes 60",
+                  "beatmapJsonPath": "SingleStrokes60/beatmap.json",
+                  "requiredScore": 65
+                }
+              ]
+            },
+            {
+              "id": "lesson-introduction-to-kit",
+              "title": "Introduction of the Kit",
+              "description": "Understand each drum and cymbal role one by one.",
+              "objective": "Identify core kit pieces and map basic note positions to each drum part.",
+              "learningObjectives": [
+                "Identify snare, kick, hi-hat, toms, and crash/ride cymbals.",
+                "Associate common note positions with each drum part.",
+                "Play single hits on each kit piece at a steady tempo.",
+                "Transition between kit pieces while keeping simple time."
+              ],
+              "learningVideos": [],
+              "exercises": [
+                {
+                  "id": "exercise-kit-intro-1",
+                  "title": "Kit Notes - 60 BPM",
+                  "description": "Single-note kit mapping at slow tempo.",
+                  "beatmapTitle": "Single Strokes 60",
+                  "beatmapJsonPath": "SingleStrokes60/beatmap.json",
+                  "requiredScore": 70
+                }
+              ]
+            }
+          ]
+        },
         {
           "id": "module-rudiments",
           "title": "Rudiment Basics",
@@ -16,6 +68,19 @@
               "title": "Single Strokes",
               "description": "Play consistent alternating strokes at slow tempo.",
               "objective": "Maintain even dynamics and timing for one full phrase.",
+              "learningObjectives": [
+                "Identify snare, hi-hat, bass drum, and metronome cue before starting.",
+                "Demonstrate correct matched grip and relaxed stick control.",
+                "Alternate right and left hand strokes evenly for full practice phrases.",
+                "Keep consistent timing at slow tempo without rushing or dragging."
+              ],
+              "learningVideos": [
+                {
+                  "title": "Single Stroke Roll Lesson",
+                  "videoFilePath": "Videos/Rudiments/SingleStroke.mp4",
+                  "youtubeUrl": "https://www.youtube.com/watch?v=X-rGsGZTlso"
+                }
+              ],
               "exercises": [
                 {
                   "id": "exercise-single-1",
@@ -40,6 +105,15 @@
               "title": "Double Strokes",
               "description": "Develop bounce and rebound consistency.",
               "objective": "Play doubles evenly for the full bar pattern.",
+              "learningObjectives": [
+                "Control stick rebound to produce two clean notes per hand.",
+                "Maintain equal volume between first and second notes in each double.",
+                "Execute continuous double-stroke patterns without tension buildup.",
+                "Stay aligned with the beat across complete bar repetitions."
+              ],
+              "learningVideos": [
+              
+              ],
               "exercises": [
                 {
                   "id": "exercise-double-1",
@@ -63,6 +137,12 @@
               "title": "Basic Rock Groove",
               "description": "Kick, snare, and hi-hat coordination.",
               "objective": "Keep groove consistent with minimal timing drift.",
+              "learningObjectives": [
+                "Identify the role of kick, snare, and hi-hat in a basic 4/4 groove.",
+                "Coordinate right hand timekeeping with backbeat snare placement.",
+                "Place kick drum notes accurately under steady hi-hat pulse.",
+                "Maintain groove consistency for full sections at target tempo."
+              ],
               "exercises": [
                 {
                   "id": "exercise-rock-1",
@@ -71,6 +151,198 @@
                   "beatmapTitle": "Rock Groove L1",
                   "beatmapJsonPath": "RockGrooveL1/beatmap.json",
                   "requiredScore": 80
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Intermediate",
+      "title": "Drum Development",
+      "description": "Expand groove vocabulary, control dynamics, and improve transitions.",
+      "difficulty": "Intermediate",
+      "modules": [
+        {
+          "id": "module-groove-variations",
+          "title": "Groove Variations",
+          "description": "Add syncopation and ghost notes to core patterns.",
+          "lessons": [
+            {
+              "id": "lesson-syncopated-rock",
+              "title": "Syncopated Rock",
+              "description": "Introduce off-beat kick placement while keeping steady hi-hat time.",
+              "objective": "Perform groove variations accurately for the full progression.",
+              "learningObjectives": [
+                "Read and count off-beat kick placements within a 4/4 bar.",
+                "Keep hi-hat subdivision stable while moving kick notes off the beat.",
+                "Maintain backbeat consistency during syncopated pattern changes.",
+                "Perform full groove progressions with accurate transitions."
+              ],
+              "exercises": [
+                {
+                  "id": "exercise-sync-rock-1",
+                  "title": "Sync Rock - 85 BPM",
+                  "description": "Controlled syncopation at moderate tempo.",
+                  "beatmapTitle": "Sync Rock 85",
+                  "beatmapJsonPath": "SyncRock85/beatmap.json",
+                  "requiredScore": 82
+                },
+                {
+                  "id": "exercise-sync-rock-2",
+                  "title": "Sync Rock - 100 BPM",
+                  "description": "Faster syncopation with tighter control.",
+                  "beatmapTitle": "Sync Rock 100",
+                  "beatmapJsonPath": "SyncRock100/beatmap.json",
+                  "requiredScore": 85
+                }
+              ]
+            },
+            {
+              "id": "lesson-ghost-note-control",
+              "title": "Ghost Note Control",
+              "description": "Develop soft snare articulation without losing backbeat impact.",
+              "objective": "Maintain dynamic contrast between ghost and accent strokes.",
+              "learningObjectives": [
+                "Differentiate ghost notes from accented backbeats by touch and volume.",
+                "Play consistent low-volume ghost notes between main snare accents.",
+                "Preserve strong backbeat impact while keeping ghost notes controlled.",
+                "Maintain dynamic balance through complete groove phrases."
+              ],
+              "exercises": [
+                {
+                  "id": "exercise-ghost-1",
+                  "title": "Ghost Notes - Level 1",
+                  "description": "Basic ghost note placement in 4/4 groove.",
+                  "beatmapTitle": "Ghost Notes L1",
+                  "beatmapJsonPath": "GhostNotesL1/beatmap.json",
+                  "requiredScore": 84
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "module-fills-and-transitions",
+          "title": "Fills and Transitions",
+          "description": "Connect sections musically with clean, in-time fills.",
+          "lessons": [
+            {
+              "id": "lesson-one-bar-fills",
+              "title": "One-Bar Fills",
+              "description": "Practice common one-bar fill groupings across the kit.",
+              "objective": "Return to the downbeat cleanly after each fill.",
+              "learningObjectives": [
+                "Orchestrate one-bar fill patterns across snare and tom surfaces.",
+                "Keep subdivision count steady while moving around the kit.",
+                "Control stick heights to balance fill dynamics and clarity.",
+                "Re-enter the groove on beat one without timing disruption."
+              ],
+              "exercises": [
+                {
+                  "id": "exercise-fills-1",
+                  "title": "One-Bar Fills - 90 BPM",
+                  "description": "Single-stroke and double-stroke fill combinations.",
+                  "beatmapTitle": "One Bar Fills 90",
+                  "beatmapJsonPath": "OneBarFills90/beatmap.json",
+                  "requiredScore": 85
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Advanced",
+      "title": "Drum Performance",
+      "description": "Master advanced timing, independence, and performance-ready endurance.",
+      "difficulty": "Advanced",
+      "modules": [
+        {
+          "id": "module-linear-and-polyrhythmic",
+          "title": "Polyrhythmic Concepts",
+          "description": "Train advanced coordination with non-overlapping and cross-rhythm phrasing.",
+          "lessons": [
+            {
+              "id": "lesson-linear-groove-control",
+              "title": "Linear Groove Control",
+              "description": "Build speed and precision in linear sticking systems.",
+              "objective": "Maintain consistency and timing under higher tempos.",
+              "learningObjectives": [
+                "Execute non-overlapping linear sticking sequences with clean articulation.",
+                "Increase tempo while preserving stroke accuracy and motion efficiency.",
+                "Maintain balanced dynamics between hand and foot components.",
+                "Sustain linear groove precision over extended repetitions."
+              ],
+              "exercises": [
+                {
+                  "id": "exercise-linear-1",
+                  "title": "Linear Groove - 105 BPM",
+                  "description": "Core linear pattern endurance.",
+                  "beatmapTitle": "Linear Groove 105",
+                  "beatmapJsonPath": "LinearGroove105/beatmap.json",
+                  "requiredScore": 88
+                },
+                {
+                  "id": "exercise-linear-2",
+                  "title": "Linear Groove - 120 BPM",
+                  "description": "High-tempo linear transitions and accents.",
+                  "beatmapTitle": "Linear Groove 120",
+                  "beatmapJsonPath": "LinearGroove120/beatmap.json",
+                  "requiredScore": 90
+                }
+              ]
+            },
+            {
+              "id": "lesson-polyrhythm-foundation",
+              "title": "Polyrhythm",
+              "description": "Internalize 3-over-4 and related phrasing ideas.",
+              "objective": "Lock cross-rhythms without rushing or dragging.",
+              "learningObjectives": [
+                "Count and vocalize 3-over-4 pulse relationships accurately.",
+                "Coordinate contrasting limb groupings while keeping a stable pulse.",
+                "Resolve cross-rhythm phrases back to the barline cleanly.",
+                "Maintain tempo integrity throughout polyrhythmic studies."
+              ],
+              "exercises": [
+                {
+                  "id": "exercise-poly-1",
+                  "title": "3 over 4 - 95 BPM",
+                  "description": "Introductory polyrhythmic coordination study.",
+                  "beatmapTitle": "Polyrhythm 3over4 95",
+                  "beatmapJsonPath": "Polyrhythm3over495/beatmap.json",
+                  "requiredScore": 89
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "module-performance-endurance",
+          "title": "Performance Endurance",
+          "description": "Sustain accuracy and power over longer musical sections.",
+          "lessons": [
+            {
+              "id": "lesson-extended-arrangements",
+              "title": "Extended Arrangements",
+              "description": "Navigate long-form song structures with dynamic control.",
+              "objective": "Complete full arrangement without major timing breakdowns.",
+              "learningObjectives": [
+                "Map song sections and cue transitions across a long-form arrangement.",
+                "Apply dynamic shaping between verse, chorus, and bridge sections.",
+                "Maintain endurance and posture through sustained performance duration.",
+                "Deliver full-run consistency with minimal timing deviation."
+              ],
+              "exercises": [
+                {
+                  "id": "exercise-endurance-1",
+                  "title": "Performance Run - Level 1",
+                  "description": "Five-minute structured arrangement challenge.",
+                  "beatmapTitle": "Performance Run L1",
+                  "beatmapJsonPath": "PerformanceRunL1/beatmap.json",
+                  "requiredScore": 90
                 }
               ]
             }
