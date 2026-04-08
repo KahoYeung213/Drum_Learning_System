@@ -61,6 +61,7 @@ public class CourseScaffoldingUI : MonoBehaviour
         {
             courseLibrary.OnCoursesLoaded += HandleCoursesLoaded;
             HandleCoursesLoaded(new List<DrumCourseData>(courseLibrary.Courses));
+            RefreshVisibleModuleProgress();
         }
         else
         {
@@ -623,6 +624,8 @@ public class CourseScaffoldingUI : MonoBehaviour
         }
 
         RawImage progressBar = progressBarTransform != null ? progressBarTransform.GetComponent<RawImage>() : null;
+        float currentBarWidth = 0f;
+        float baseBarWidth = 0f;
         if (progressBar != null)
         {
             RectTransform barRect = progressBar.rectTransform;
@@ -632,8 +635,15 @@ public class CourseScaffoldingUI : MonoBehaviour
                 progressBarBaseWidths[key] = Mathf.Max(0f, barRect.sizeDelta.x);
             }
 
-            float baseWidth = progressBarBaseWidths[key];
-            barRect.sizeDelta = new Vector2(baseWidth * progress01, barRect.sizeDelta.y);
+            // Keep the bar pinned to the left edge so shrinking width behaves like a fill.
+            barRect.anchorMin = new Vector2(0f, barRect.anchorMin.y);
+            barRect.anchorMax = new Vector2(0f, barRect.anchorMax.y);
+            barRect.pivot = new Vector2(0f, barRect.pivot.y);
+            barRect.anchoredPosition = new Vector2(0f, barRect.anchoredPosition.y);
+
+            baseBarWidth = progressBarBaseWidths[key];
+            currentBarWidth = baseBarWidth * progress01;
+            barRect.sizeDelta = new Vector2(currentBarWidth, barRect.sizeDelta.y);
         }
 
         Transform progressTextTransform = FindByPathOrSelf(moduleItem.transform, moduleProgressTextPath);
@@ -651,7 +661,18 @@ public class CourseScaffoldingUI : MonoBehaviour
                 textRect.anchorMin = new Vector2(1f, textRect.anchorMin.y);
                 textRect.anchorMax = new Vector2(1f, textRect.anchorMax.y);
                 textRect.pivot = new Vector2(1f, textRect.pivot.y);
-                textRect.anchoredPosition = new Vector2(-8f, textRect.anchoredPosition.y);
+
+                float rightPadding = 8f;
+                // Keep label visually fixed to the original right edge even if it remains a child of the shrinking bar.
+                if (progressBarTransform != null && progressTextTransform.parent == progressBarTransform && baseBarWidth > 0f)
+                {
+                    float shrinkDelta = baseBarWidth - currentBarWidth;
+                    textRect.anchoredPosition = new Vector2(-rightPadding + shrinkDelta, textRect.anchoredPosition.y);
+                }
+                else
+                {
+                    textRect.anchoredPosition = new Vector2(-rightPadding, textRect.anchoredPosition.y);
+                }
             }
 
             TMP_Text tmp = progressTextTransform.GetComponent<TMP_Text>();

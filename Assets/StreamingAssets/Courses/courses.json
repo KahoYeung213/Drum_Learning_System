@@ -111,9 +111,6 @@
                 "Execute continuous double-stroke patterns without tension buildup.",
                 "Stay aligned with the beat across complete bar repetitions."
               ],
-              "learningVideos": [
-              
-              ],
               "exercises": [
                 {
                   "id": "exercise-double-1",

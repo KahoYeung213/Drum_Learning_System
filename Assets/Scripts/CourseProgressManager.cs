@@ -7,6 +7,8 @@ public class CourseProgressManager : MonoBehaviour
     private const string ProgressKey = "DrumCourseProgress_v1";
 
     [SerializeField] private bool saveOnCompletion = true;
+    [SerializeField] private bool resetProgressOnStartupForTesting = false;
+    [SerializeField] private bool hardResetAllPlayerPrefsOnStartupForTesting = false;
 
     [Serializable]
     private class CourseProgressSave
@@ -25,6 +27,21 @@ public class CourseProgressManager : MonoBehaviour
 
     private void Awake()
     {
+        if (hardResetAllPlayerPrefsOnStartupForTesting)
+        {
+            PlayerPrefs.DeleteAll();
+            PlayerPrefs.Save();
+            completedExerciseScores.Clear();
+            Debug.Log("[CourseProgressManager] HARD reset all PlayerPrefs on startup for testing.");
+            return;
+        }
+
+        if (resetProgressOnStartupForTesting)
+        {
+            ResetAllProgress();
+            Debug.Log("[CourseProgressManager] Progress reset on startup for testing.");
+        }
+
         LoadProgress();
     }
 
@@ -197,6 +214,22 @@ public class CourseProgressManager : MonoBehaviour
         completedExerciseScores.Clear();
         PlayerPrefs.DeleteKey(ProgressKey);
         PlayerPrefs.Save();
+    }
+
+    [ContextMenu("Testing/Reset Course Progress (Key Only)")]
+    private void ContextResetCourseProgress()
+    {
+        ResetAllProgress();
+        Debug.Log("[CourseProgressManager] Context reset: course progress key deleted.");
+    }
+
+    [ContextMenu("Testing/Hard Reset All PlayerPrefs")]
+    private void ContextHardResetAllPlayerPrefs()
+    {
+        completedExerciseScores.Clear();
+        PlayerPrefs.DeleteAll();
+        PlayerPrefs.Save();
+        Debug.Log("[CourseProgressManager] Context HARD reset: all PlayerPrefs deleted.");
     }
 
     private static string BuildExerciseKey(string courseId, string moduleId, string lessonId, string exerciseId)

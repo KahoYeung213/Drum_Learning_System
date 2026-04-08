@@ -29,6 +29,9 @@ namespace MidiJack
 {
     public class MidiDriver
     {
+        // Bound per-frame native dequeue work to avoid stalls on large MIDI bursts.
+        const int _maxMessagesPerUpdate = 512;
+
         #region Internal Data
 
         class ChannelState
@@ -203,11 +206,13 @@ namespace MidiJack
             }
 
             // Process the message queue.
-            while (true)
+            var processedMessageCount = 0;
+            while (processedMessageCount < _maxMessagesPerUpdate)
             {
                 // Pop from the queue.
                 var data = DequeueIncomingData();
                 if (data == 0) break;
+                processedMessageCount++;
 
                 // Parse the message.
                 var message = new MidiMessage(data);

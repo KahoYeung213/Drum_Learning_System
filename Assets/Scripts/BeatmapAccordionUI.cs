@@ -3,6 +3,8 @@ using UnityEngine.UI;
 using TMPro;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 public class BeatmapAccordionUI : MonoBehaviour
 {
@@ -10,7 +12,6 @@ public class BeatmapAccordionUI : MonoBehaviour
     [SerializeField] private Transform accordionContent; // The "accordion" container
     [SerializeField] private GameObject accordionItemPrefab; // Prefab for accordion items
     [SerializeField] private bool allowAutoResolveBindings = false;
-    [SerializeField] private bool runThisAccordionInstance = false;
     [SerializeField] private BeatmapLibrary beatmapLibrary;
     [SerializeField] private BeatmapPlayer beatmapPlayer; // Reference to the player
     
@@ -20,18 +21,39 @@ public class BeatmapAccordionUI : MonoBehaviour
     [SerializeField] private string playButtonPath = "PlayButton"; // Path to the Play button in prefab
     [SerializeField] private string deleteButtonPath = "DeleteButton"; // Path to the Delete button in prefab
     [SerializeField] private string actionsContainerPath = "Actions"; // Optional parent object that wraps Select/Delete buttons
+    [SerializeField] private bool hideInlineBeatmapInfo = true;
+
+    [Header("External Beatmap Info UI")]
+    [SerializeField] private TMP_Text selectedBeatmapTitleText;
+    [SerializeField] private TMP_Text selectedBeatmapInfoText;
+
+    [Header("Nested Snips (Course-style)")]
+    [SerializeField] private bool useNestedSnipButtons = true;
+    [SerializeField] private bool allowCollapseExpandedBeatmap = true;
+    [SerializeField] private string parentHeaderButtonPath = "Header";
+    [SerializeField] private string snipsContainerPath = "SnipsContainer";
+    [SerializeField] private GameObject snipItemButtonPrefab;
+    [SerializeField] private string snipTitleTextPath = "Title";
+    [SerializeField] private string snipPlayButtonPath = "PlayButton";
+    [SerializeField] private string snipDeleteButtonPath = "DeleteButton";
     
     private List<GameObject> accordionItems = new List<GameObject>();
     private bool isSubscribedToLibrary;
+    private static BeatmapAccordionUI activeAccordionInstance;
+    private bool ownsActiveInstance;
+    private readonly HashSet<string> expandedBeatmapKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     void Awake()
     {
-        if (!runThisAccordionInstance)
+        if (activeAccordionInstance != null && activeAccordionInstance != this)
         {
             enabled = false;
-            Debug.LogWarning($"[BeatmapAccordionUI] Disabled on '{name}' because runThisAccordionInstance is off.");
+            Debug.LogWarning($"[BeatmapAccordionUI] Disabled duplicate instance '{name}'. Active instance is '{activeAccordionInstance.name}'.");
             return;
         }
+
+        activeAccordionInstance = this;
+        ownsActiveInstance = true;
 
         ResolveAccordionReferences();
     }
@@ -92,6 +114,12 @@ public class BeatmapAccordionUI : MonoBehaviour
             beatmapLibrary.OnBeatmapAdded -= AddBeatmapToAccordion;
             isSubscribedToLibrary = false;
         }
+
+        if (ownsActiveInstance && activeAccordionInstance == this)
+        {
+            activeAccordionInstance = null;
+            ownsActiveInstance = false;
+        }
     }
     
     public void PopulateAccordion(List<BeatmapData> beatmaps)
@@ -100,11 +128,20 @@ public class BeatmapAccordionUI : MonoBehaviour
         
         // Clear existing items
         ClearAccordion();
-        
-        // Create new items
-        foreach (BeatmapData beatmap in beatmaps)
+
+        var childMap = BuildChildMap(beatmaps);
+        var childJsonPaths = new HashSet<string>(childMap.Values.SelectMany(list => list).Select(b => NormalizePath(b.jsonFilePath)), StringComparer.OrdinalIgnoreCase);
+
+        // Create only top-level parents. Children are rendered inside each parent's nested container.
+        foreach (BeatmapData beatmap in beatmaps.OrderBy(b => b.title))
         {
-            CreateAccordionItem(beatmap);
+            string currentJsonPath = NormalizePath(beatmap.jsonFilePath);
+            if (childJsonPaths.Contains(currentJsonPath))
+                continue;
+
+            string parentKey = NormalizePath(beatmap.jsonFilePath);
+            childMap.TryGetValue(parentKey, out List<BeatmapData> children);
+            CreateAccordionItem(beatmap, children, parentKey);
         }
         
         Debug.Log($"[BeatmapAccordionUI] Created {accordionItems.Count} accordion items");
@@ -112,17 +149,18 @@ public class BeatmapAccordionUI : MonoBehaviour
     
     void AddBeatmapToAccordion(BeatmapData beatmap)
     {
-        CreateAccordionItem(beatmap);
+        if (beatmapLibrary != null)
+            PopulateAccordion(beatmapLibrary.Beatmaps);
     }
     
-    void CreateAccordionItem(BeatmapData beatmap)
+    GameObject CreateAccordionItem(BeatmapData beatmap, List<BeatmapData> children, string beatmapKey)
     {
         ResolveAccordionReferences();
 
         if (accordionItemPrefab == null || accordionContent == null)
         {
             Debug.LogError($"[BeatmapAccordionUI] Accordion item prefab or content container not assigned on '{name}' (scene: {gameObject.scene.name}, instance: {GetInstanceID()}). Content={(accordionContent != null ? accordionContent.name : "NULL")}, Prefab={(accordionItemPrefab != null ? accordionItemPrefab.name : "NULL")}");
-            return;
+            return null;
         }
         
         Debug.Log($"[BeatmapAccordionUI] Creating accordion item for: {beatmap.title}");
@@ -152,21 +190,28 @@ public class BeatmapAccordionUI : MonoBehaviour
             }
         }
         
-        // Set content text (beatmap info)
+        // Inline content can be hidden when using external info panel.
         Transform contentText = item.transform.Find(contentTextPath);
         if (contentText != null)
         {
-            TextMeshProUGUI contentTMP = contentText.GetComponent<TextMeshProUGUI>();
-            if (contentTMP != null)
+            if (hideInlineBeatmapInfo)
             {
-                contentTMP.text = beatmap.GetDisplayInfo();
+                contentText.gameObject.SetActive(false);
             }
             else
             {
-                Text contentUI = contentText.GetComponent<Text>();
-                if (contentUI != null)
+                TextMeshProUGUI contentTMP = contentText.GetComponent<TextMeshProUGUI>();
+                if (contentTMP != null)
                 {
-                    contentUI.text = beatmap.GetDisplayInfo();
+                    contentTMP.text = beatmap.GetDisplayInfo();
+                }
+                else
+                {
+                    Text contentUI = contentText.GetComponent<Text>();
+                    if (contentUI != null)
+                    {
+                        contentUI.text = beatmap.GetDisplayInfo();
+                    }
                 }
             }
         }
@@ -213,6 +258,42 @@ public class BeatmapAccordionUI : MonoBehaviour
             SetActionButtonsVisible(playButton, deleteButton, actionsContainer, itemToggle.isOn);
             itemToggle.onValueChanged.AddListener(isOpen => SetActionButtonsVisible(playButton, deleteButton, actionsContainer, isOpen));
         }
+
+        if (useNestedSnipButtons)
+        {
+            Transform snipsContainer = FindTransformByPathOrName(item.transform, snipsContainerPath);
+            bool hasChildren = PopulateSnipButtons(snipsContainer, children);
+
+            bool isExpanded = expandedBeatmapKeys.Contains(beatmapKey);
+            SetSnipsContainerVisibility(snipsContainer, hasChildren && isExpanded);
+
+            Button headerButton = null;
+            Transform headerTransform = FindTransformByPathOrName(item.transform, parentHeaderButtonPath);
+            if (headerTransform != null)
+            {
+                headerButton = headerTransform.GetComponent<Button>();
+                if (headerButton == null)
+                    headerButton = headerTransform.GetComponentInChildren<Button>(true);
+            }
+
+            if (headerButton != null)
+            {
+                headerButton.onClick.RemoveAllListeners();
+                headerButton.onClick.AddListener(() =>
+                {
+                    ToggleBeatmapSnips(beatmapKey, snipsContainer, hasChildren);
+                    UpdateExternalBeatmapInfo(beatmap);
+                });
+            }
+            else if (itemToggle != null)
+            {
+                itemToggle.onValueChanged.AddListener(_ =>
+                {
+                    ToggleBeatmapSnips(beatmapKey, snipsContainer, hasChildren);
+                    UpdateExternalBeatmapInfo(beatmap);
+                });
+            }
+        }
         else
         {
             // Fallback for non-toggle prefabs: leave buttons visible.
@@ -224,6 +305,223 @@ public class BeatmapAccordionUI : MonoBehaviour
         
         // Force layout rebuild
         LayoutRebuilder.ForceRebuildLayoutImmediate(accordionContent.GetComponent<RectTransform>());
+
+        return item;
+    }
+
+    bool PopulateSnipButtons(Transform snipsContainer, List<BeatmapData> children)
+    {
+        if (snipsContainer == null)
+        {
+            if (children != null && children.Count > 0)
+            {
+                Debug.LogWarning($"[BeatmapAccordionUI] Parent has snips but no snips container found at '{snipsContainerPath}'.");
+            }
+            return false;
+        }
+
+        GameObject template = GetSnipTemplate(snipsContainer);
+        ClearNestedList(snipsContainer, template);
+
+        if (template != null)
+            template.SetActive(false);
+
+        List<BeatmapData> safeChildren = children ?? new List<BeatmapData>();
+        foreach (BeatmapData child in safeChildren.OrderBy(c => c.title))
+        {
+            CreateSnipItem(snipsContainer, template, child);
+        }
+
+        return safeChildren.Count > 0;
+    }
+
+    void ToggleBeatmapSnips(string beatmapKey, Transform snipsContainer, bool hasChildren)
+    {
+        if (!hasChildren || snipsContainer == null)
+        {
+            SetSnipsContainerVisibility(snipsContainer, false);
+            return;
+        }
+
+        bool isExpanded = expandedBeatmapKeys.Contains(beatmapKey);
+        if (isExpanded && allowCollapseExpandedBeatmap)
+        {
+            expandedBeatmapKeys.Remove(beatmapKey);
+            SetSnipsContainerVisibility(snipsContainer, false);
+            return;
+        }
+
+        if (isExpanded)
+        {
+            SetSnipsContainerVisibility(snipsContainer, true);
+            return;
+        }
+
+        expandedBeatmapKeys.Add(beatmapKey);
+        SetSnipsContainerVisibility(snipsContainer, true);
+    }
+
+    void SetSnipsContainerVisibility(Transform snipsContainer, bool visible)
+    {
+        if (snipsContainer != null)
+            snipsContainer.gameObject.SetActive(visible);
+    }
+
+    GameObject GetSnipTemplate(Transform snipsContainer)
+    {
+        if (snipItemButtonPrefab != null)
+            return snipItemButtonPrefab;
+
+        if (snipsContainer != null && snipsContainer.childCount > 0)
+            return snipsContainer.GetChild(0).gameObject;
+
+        return null;
+    }
+
+    void CreateSnipItem(Transform snipsContainer, GameObject template, BeatmapData snipBeatmap)
+    {
+        GameObject source = template != null ? template : snipItemButtonPrefab;
+        if (source == null)
+        {
+            Debug.LogWarning("[BeatmapAccordionUI] Cannot create snip item: no template or snip item prefab.");
+            return;
+        }
+
+        GameObject snipItem = Instantiate(source, snipsContainer);
+        snipItem.name = $"SnipItem_{snipBeatmap.title}";
+        snipItem.SetActive(true);
+
+        SetTextOnPath(snipItem.transform, snipTitleTextPath, snipBeatmap.title);
+
+        Button playButton = FindButtonWithFallback(snipItem.transform, null, snipPlayButtonPath);
+        if (playButton == null)
+            playButton = snipItem.GetComponent<Button>();
+        if (playButton == null)
+            playButton = snipItem.GetComponentInChildren<Button>(true);
+
+        if (playButton != null)
+        {
+            playButton.onClick.RemoveAllListeners();
+            playButton.onClick.AddListener(() => OnBeatmapSelected(snipBeatmap));
+        }
+
+        Button deleteButton = FindButtonWithFallback(snipItem.transform, null, snipDeleteButtonPath);
+        if (deleteButton != null)
+        {
+            deleteButton.onClick.RemoveAllListeners();
+            deleteButton.onClick.AddListener(() => OnBeatmapDelete(snipBeatmap, snipItem));
+        }
+    }
+
+    void ClearNestedList(Transform root, GameObject preserveItem = null)
+    {
+        if (root == null)
+            return;
+
+        for (int i = root.childCount - 1; i >= 0; i--)
+        {
+            GameObject child = root.GetChild(i).gameObject;
+            if (preserveItem != null && child == preserveItem)
+                continue;
+
+            // Preserve label elements (Text/TMP_Text without Button)
+            if (child.GetComponent<Button>() == null && (child.GetComponent<Text>() != null || child.GetComponent<TMP_Text>() != null))
+                continue;
+
+            Destroy(child);
+        }
+
+        if (preserveItem != null)
+            preserveItem.transform.SetAsFirstSibling();
+    }
+
+    void SetTextOnPath(Transform root, string path, string value)
+    {
+        Transform target = FindTransformByPathOrName(root, path);
+        if (target == null)
+            target = root;
+
+        TMP_Text tmp = target.GetComponent<TMP_Text>();
+        if (tmp != null)
+        {
+            tmp.text = value;
+            return;
+        }
+
+        Text text = target.GetComponent<Text>();
+        if (text != null)
+        {
+            text.text = value;
+            return;
+        }
+
+        TMP_Text fallbackTmp = root.GetComponentInChildren<TMP_Text>(true);
+        if (fallbackTmp != null)
+        {
+            fallbackTmp.text = value;
+            return;
+        }
+
+        Text fallbackText = root.GetComponentInChildren<Text>(true);
+        if (fallbackText != null)
+            fallbackText.text = value;
+    }
+
+    Dictionary<string, List<BeatmapData>> BuildChildMap(List<BeatmapData> beatmaps)
+    {
+        var beatmapByJsonPath = new Dictionary<string, BeatmapData>(StringComparer.OrdinalIgnoreCase);
+        foreach (BeatmapData beatmap in beatmaps)
+        {
+            string jsonPath = NormalizePath(beatmap.jsonFilePath);
+            if (!string.IsNullOrEmpty(jsonPath) && !beatmapByJsonPath.ContainsKey(jsonPath))
+                beatmapByJsonPath.Add(jsonPath, beatmap);
+        }
+
+        var childMap = new Dictionary<string, List<BeatmapData>>(StringComparer.OrdinalIgnoreCase);
+        foreach (BeatmapData beatmap in beatmaps)
+        {
+            string beatmapJsonPath = NormalizePath(beatmap.jsonFilePath);
+            string parentJsonPath = GetParentBeatmapJsonPath(beatmapJsonPath);
+            if (string.IsNullOrEmpty(parentJsonPath))
+                continue;
+
+            if (!beatmapByJsonPath.ContainsKey(parentJsonPath))
+                continue;
+
+            if (!childMap.TryGetValue(parentJsonPath, out List<BeatmapData> children))
+            {
+                children = new List<BeatmapData>();
+                childMap[parentJsonPath] = children;
+            }
+
+            children.Add(beatmap);
+        }
+
+        return childMap;
+    }
+
+    string GetParentBeatmapJsonPath(string jsonFilePath)
+    {
+        if (string.IsNullOrEmpty(jsonFilePath))
+            return null;
+
+        string beatmapFolder = Path.GetDirectoryName(jsonFilePath);
+        if (string.IsNullOrEmpty(beatmapFolder))
+            return null;
+
+        string parentFolder = Directory.GetParent(beatmapFolder)?.FullName;
+        if (string.IsNullOrEmpty(parentFolder))
+            return null;
+
+        return NormalizePath(Path.Combine(parentFolder, "beatmap.json"));
+    }
+
+    string NormalizePath(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return string.Empty;
+
+        return path.Replace('\\', '/').Trim();
     }
 
     Button FindButtonWithFallback(Transform itemRoot, Transform actionsRoot, string pathOrName)
@@ -311,6 +609,7 @@ public class BeatmapAccordionUI : MonoBehaviour
     void OnBeatmapSelected(BeatmapData beatmap)
     {
         Debug.Log($"Selected beatmap: {beatmap.title}");
+        UpdateExternalBeatmapInfo(beatmap);
         
         // Load beatmap into player
         if (beatmapPlayer != null)
@@ -333,27 +632,36 @@ public class BeatmapAccordionUI : MonoBehaviour
             return;
         }
         
-        // Confirm deletion (you can add a confirmation dialog here later)
         try
         {
-            // Remove from library (this will delete the folder)
+            // Destroy the UI item immediately
+            if (accordionItem != null)
+            {
+                DestroyImmediate(accordionItem);
+            }
+            
+            // Delete from library (this will fire OnBeatmapsLoaded event)
             beatmapLibrary.DeleteBeatmap(beatmap);
             
-            // Remove from UI
-            if (accordionItems.Contains(accordionItem))
-            {
-                accordionItems.Remove(accordionItem);
-            }
-            Destroy(accordionItem);
-            
-            // Force layout rebuild
-            LayoutRebuilder.ForceRebuildLayoutImmediate(accordionContent.GetComponent<RectTransform>());
-            
+            // Full repopulation will happen via OnBeatmapsLoaded event
+            // Just log for confirmation
             Debug.Log($"[BeatmapAccordionUI] Successfully deleted beatmap: {beatmap.title}");
         }
         catch (System.Exception e)
         {
             Debug.LogError($"[BeatmapAccordionUI] Error deleting beatmap: {e.Message}");
         }
+    }
+
+    void UpdateExternalBeatmapInfo(BeatmapData beatmap)
+    {
+        if (beatmap == null)
+            return;
+
+        if (selectedBeatmapTitleText != null)
+            selectedBeatmapTitleText.text = beatmap.title;
+
+        if (selectedBeatmapInfoText != null)
+            selectedBeatmapInfoText.text = beatmap.GetDisplayInfo();
     }
 }

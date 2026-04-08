@@ -29,7 +29,6 @@ public class BeatmapSnipper : MonoBehaviour
     [SerializeField] private Image rangeHighlight; // Must be child of timeline slider
     [SerializeField] private RectTransform fillAreaRect; // Optional: the Fill Area of the slider for precise positioning
     [Tooltip("Markers should be direct children of the timeline slider, siblings with Background/Fill Area/Handle.")]
-    [SerializeField] private bool markersSetupCorrectly = false; // Just a visual reminder in inspector
     
     [Header("References")]
     [SerializeField] private BeatmapPlayer beatmapPlayer;
@@ -175,6 +174,8 @@ public class BeatmapSnipper : MonoBehaviour
         // Hide snip mode UI initially
         if (snipModePanel != null)
             snipModePanel.SetActive(false);
+
+        SetConfirmSnipInteractable(true);
         
         HideMarkers();
     }
@@ -208,6 +209,7 @@ public class BeatmapSnipper : MonoBehaviour
         }
         
         isSnipModeActive = true;
+        SetConfirmSnipInteractable(true);
         
         // Show snip mode UI
         if (snipModePanel != null)
@@ -219,6 +221,7 @@ public class BeatmapSnipper : MonoBehaviour
         if (referenceRect == null)
         {
             UnityEngine.Debug.LogError("[BeatmapSnipper] Cannot activate snip mode - no reference rect available!");
+            SetConfirmSnipInteractable(true);
             return;
         }
         
@@ -582,6 +585,9 @@ public class BeatmapSnipper : MonoBehaviour
     
     void OnConfirmSnip()
     {
+        if (confirmSnipButton != null && !confirmSnipButton.interactable)
+            return;
+
         if (!beatmapPlayer.IsLoaded || beatmapPlayer.CurrentBeatmap == null)
         {
             UnityEngine.Debug.LogWarning("[BeatmapSnipper] No beatmap loaded!");
@@ -595,8 +601,7 @@ public class BeatmapSnipper : MonoBehaviour
         UnityEngine.Debug.Log($"[BeatmapSnipper] Creating snip '{snipName}' from {startTime:F2}s to {endTime:F2}s");
         
         // Disable confirm button while processing
-        if (confirmSnipButton != null)
-            confirmSnipButton.interactable = false;
+        SetConfirmSnipInteractable(false);
         
         StartCoroutine(CreateSnippedBeatmapAsync(snipName, startTime, endTime));
     }
@@ -604,6 +609,7 @@ public class BeatmapSnipper : MonoBehaviour
     void OnCancelSnip()
     {
         isSnipModeActive = false;
+        SetConfirmSnipInteractable(true);
         
         if (snipModePanel != null)
             snipModePanel.SetActive(false);
@@ -1015,8 +1021,7 @@ public class BeatmapSnipper : MonoBehaviour
         if (originalBeatmap == null || originalBeatmap.beatmap == null)
         {
             UnityEngine.Debug.LogError("[BeatmapSnipper] Original beatmap is null!");
-            if (confirmSnipButton != null)
-                confirmSnipButton.interactable = true;
+            SetConfirmSnipInteractable(true);
             yield break;
         }
         
@@ -1059,8 +1064,7 @@ public class BeatmapSnipper : MonoBehaviour
         if (snippedNotes.Count == 0)
         {
             UnityEngine.Debug.LogWarning("[BeatmapSnipper] No notes found in selected range!");
-            if (confirmSnipButton != null)
-                confirmSnipButton.interactable = true;
+            SetConfirmSnipInteractable(true);
             yield break;
         }
         
@@ -1092,15 +1096,20 @@ public class BeatmapSnipper : MonoBehaviour
         yield return StartCoroutine(SaveSnippedBeatmapAsync(snippedBeatmap, originalBeatmap, startTime, endTime));
         
         // Re-enable confirm button and close snip mode
-        if (confirmSnipButton != null)
-            confirmSnipButton.interactable = true;
+        SetConfirmSnipInteractable(true);
         
         OnCancelSnip();
+    }
+
+    void SetConfirmSnipInteractable(bool interactable)
+    {
+        if (confirmSnipButton != null)
+            confirmSnipButton.interactable = interactable;
     }
     
     IEnumerator SaveSnippedBeatmapAsync(BeatmapData beatmap, BeatmapData originalBeatmap, float beatmapStartTime, float beatmapEndTime)
     {
-        string beatmapsDirectory = "";
+        string originalBeatmapFolder = "";
         string beatmapFolder = "";
         string newAudioPath = "";
         string newMidiPath = "";
@@ -1127,14 +1136,20 @@ public class BeatmapSnipper : MonoBehaviour
         
         try
         {
-            beatmapsDirectory = Path.Combine(Application.persistentDataPath, "Beatmaps");
-            beatmapFolder = Path.Combine(beatmapsDirectory, beatmap.title);
+            originalBeatmapFolder = Path.GetDirectoryName(originalBeatmap.jsonFilePath);
+            if (string.IsNullOrEmpty(originalBeatmapFolder) || !Directory.Exists(originalBeatmapFolder))
+            {
+                UnityEngine.Debug.LogError("[BeatmapSnipper] Original beatmap folder not found. Cannot create nested snip.");
+                yield break;
+            }
+
+            beatmapFolder = Path.Combine(originalBeatmapFolder, beatmap.title);
             
             // If folder exists, add timestamp
             if (Directory.Exists(beatmapFolder))
             {
                 beatmap.title = beatmap.title + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                beatmapFolder = Path.Combine(beatmapsDirectory, beatmap.title);
+                beatmapFolder = Path.Combine(originalBeatmapFolder, beatmap.title);
             }
             
             Directory.CreateDirectory(beatmapFolder);

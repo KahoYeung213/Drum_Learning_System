@@ -216,6 +216,11 @@ public class HitDetector : MonoBehaviour
     void UpdateScore(HitResult result)
     {
         int points = 0;
+
+        if (result.timingError > 0f)
+            currentScore.earlyHits++;
+        else if (result.timingError < 0f)
+            currentScore.lateHits++;
         
         switch (result.grade)
         {
@@ -314,6 +319,8 @@ public class ScoreData
     public int goodHits;
     public int okHits;
     public int missHits;
+    public int earlyHits;
+    public int lateHits;
     public int combo;
     public int maxCombo;
     public float accuracy; // 0-100%

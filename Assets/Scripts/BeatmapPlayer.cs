@@ -52,6 +52,8 @@ public class BeatmapPlayer : MonoBehaviour
     private bool isInPreRoll = false;
     private float preRollStartRealTime = 0f;
     private Coroutine preRollCoroutine = null;
+    private bool playbackSessionActive = false;
+    private bool isPausedByUser = false;
     
     // Events
     public event Action<BeatmapData> OnBeatmapLoaded;
@@ -59,6 +61,7 @@ public class BeatmapPlayer : MonoBehaviour
     public event Action OnPlaybackStarted;
     public event Action OnPlaybackPaused;
     public event Action OnPlaybackStopped;
+    public event Action OnPlaybackCompleted;
     public event Action<float> OnSpeedChanged; // Notifies listeners when speed changes
     
     // Properties
@@ -259,6 +262,19 @@ public class BeatmapPlayer : MonoBehaviour
     
     void Update()
     {
+        // Detect natural playback completion so UI can show end-of-song stats.
+        if (isLoaded && playbackSessionActive && !isInPreRoll && !isPausedByUser && audioSource != null && audioSource.clip != null)
+        {
+            bool reachedClipEnd = !audioSource.isPlaying && audioSource.time >= audioSource.clip.length - 0.05f;
+            if (reachedClipEnd)
+            {
+                playbackSessionActive = false;
+                OnPlaybackCompleted?.Invoke();
+                OnPlaybackStopped?.Invoke();
+                Debug.Log("[BeatmapPlayer] Playback completed");
+            }
+        }
+
         // Handle metronome clicks
         if (metronomeEnabled && IsPlaying && isLoaded && beatInterval > 0)
         {
@@ -383,6 +399,9 @@ public class BeatmapPlayer : MonoBehaviour
             return;
         }
         
+        playbackSessionActive = true;
+        isPausedByUser = false;
+
         // Check if this is a snipped beatmap with countdown already in audio
         bool audioHasCountdown = currentBeatmap?.metadata?.audio_includes_countdown ?? false;
         
@@ -450,6 +469,7 @@ public class BeatmapPlayer : MonoBehaviour
             isInPreRoll = false;
         }
 
+        isPausedByUser = true;
         Debug.Log("[BeatmapPlayer] Paused");
         audioSource.Pause();
         OnPlaybackPaused?.Invoke();
@@ -469,6 +489,8 @@ public class BeatmapPlayer : MonoBehaviour
         {
             audioSource.Stop();
             audioSource.time = 0f;
+            playbackSessionActive = false;
+            isPausedByUser = false;
             OnPlaybackStopped?.Invoke();
             Debug.Log("Playback stopped");
         }

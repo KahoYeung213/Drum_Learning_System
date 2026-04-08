@@ -7331,7 +7331,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 28.949, y: -150.14334}
+  m_AnchoredPosition: {x: 28.949, y: -119.75665}
   m_SizeDelta: {x: 430.766, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &514555737
@@ -8311,6 +8311,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BeatmapAccordionUI
   accordionContent: {fileID: 1059725458}
   accordionItemPrefab: {fileID: 1762005209}
+  allowAutoResolveBindings: 0
+  runThisAccordionInstance: 0
   beatmapLibrary: {fileID: 372043740}
   beatmapPlayer: {fileID: 302080307}
   headerTextPath: Title
@@ -12125,6 +12127,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BeatmapAccordionUI
   accordionContent: {fileID: 514555736}
   accordionItemPrefab: {fileID: 8100569772997832745}
+  allowAutoResolveBindings: 0
+  runThisAccordionInstance: 0
   beatmapLibrary: {fileID: 372043740}
   beatmapPlayer: {fileID: 302080307}
   headerTextPath: Title
@@ -13311,6 +13315,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BeatmapAccordionUI
   accordionContent: {fileID: 2138506090}
   accordionItemPrefab: {fileID: 1469181967}
+  allowAutoResolveBindings: 0
+  runThisAccordionInstance: 0
   beatmapLibrary: {fileID: 372043740}
   beatmapPlayer: {fileID: 302080307}
   headerTextPath: Title
@@ -15984,8 +15990,11 @@ MonoBehaviour:
   autoSelectLessonWhenModuleExpanded: 0
   moduleHeaderButtonPath: Header
   moduleTitleTextPath: Header/Title
+  moduleProgressBarPath: Header/RawImage
+  moduleProgressTextPath: Header/RawImage/Progress text
   moduleLessonsContainerPath: LessonsContainer
   lessonItemTextPath: Title
+  lessonStatusTextPath: Status
 --- !u!114 &1150978035
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -21238,10 +21247,13 @@ MonoBehaviour:
   lessonDescriptionText: {fileID: 1629055895}
   lessonContentText: {fileID: 1617708539}
   demonstrateButton: {fileID: 25442349}
+  watchVideoButton: {fileID: 0}
+  closeVideoButton: {fileID: 0}
   completeLessonButton: {fileID: 346705874}
   beatmapLibrary: {fileID: 372043740}
   beatmapPlayer: {fileID: 302080307}
   gameModeManager: {fileID: 1406157202}
+  lessonVideoPlayerUI: {fileID: 0}
 --- !u!1 &1508604522
 GameObject:
   m_ObjectHideFlags: 0

@@ -19,14 +19,14 @@ public class BeatmapLibrary : MonoBehaviour
     {
         beatmapsDirectory = Path.Combine(Application.persistentDataPath, "Beatmaps");
         defaultBeatmapsSourceDirectory = Path.Combine(Application.streamingAssetsPath, "Beatmaps");
-        
+
         if (!Directory.Exists(beatmapsDirectory))
         {
             Directory.CreateDirectory(beatmapsDirectory);
         }
 
         SeedDefaultBeatmapsIfNeeded();
-        
+
         LoadAllBeatmaps();
     }
     
@@ -61,20 +61,21 @@ public class BeatmapLibrary : MonoBehaviour
             return;
         }
         
-        // Scan all subdirectories for beatmap.json files
-        string[] beatmapFolders = Directory.GetDirectories(beatmapsDirectory);
-        
-        foreach (string folder in beatmapFolders)
+        // Scan all folders recursively for beatmap.json files
+        string[] beatmapJsonFiles = Directory.GetFiles(beatmapsDirectory, "beatmap.json", SearchOption.AllDirectories);
+
+        foreach (string jsonPath in beatmapJsonFiles)
         {
-            string jsonPath = Path.Combine(folder, "beatmap.json");
-            
-            if (File.Exists(jsonPath))
+            string folder = Path.GetDirectoryName(jsonPath);
+            if (string.IsNullOrEmpty(folder))
             {
-                BeatmapData beatmap = LoadBeatmapFromFolder(folder);
-                if (beatmap != null)
-                {
-                    beatmaps.Add(beatmap);
-                }
+                continue;
+            }
+
+            BeatmapData beatmap = LoadBeatmapFromFolder(folder);
+            if (beatmap != null)
+            {
+                beatmaps.Add(beatmap);
             }
         }
         
