@@ -174,7 +174,7 @@ public class HitFeedbackUI : MonoBehaviour
         if (comboText != null)
         {
             comboText.text = $"Combo: {score.combo}x";
-            comboText.color = score.combo > 10 ? Color.yellow : Color.white;
+            comboText.color = score.combo > 10 ? Color.yellow : Color.black;
         }
         
         if (accuracyText != null)

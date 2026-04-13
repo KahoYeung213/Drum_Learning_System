@@ -250,7 +250,9 @@ public class TimelineUI : MonoBehaviour
         
         if (!beatmapPlayer.IsLoaded)
         {
-            Debug.LogWarning("[TimelineUI] No beatmap loaded. Please select a beatmap from the library first.");
+            const string warningMessage = "No beatmap loaded. Please select a beatmap from the library first.";
+            Debug.LogWarning($"[TimelineUI] {warningMessage}");
+            AppErrorPopup.Show(warningMessage);
             return;
         }
         

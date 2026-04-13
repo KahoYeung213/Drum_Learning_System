@@ -395,7 +395,9 @@ public class BeatmapPlayer : MonoBehaviour
     {
         if (!isLoaded)
         {
-            Debug.LogWarning("[BeatmapPlayer] No beatmap loaded! Please select a beatmap first.");
+            const string warningMessage = "[BeatmapPlayer] No beatmap loaded! Please select a beatmap first.";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
         
@@ -457,7 +459,9 @@ public class BeatmapPlayer : MonoBehaviour
     {
         if (!isLoaded)
         {
-            Debug.LogWarning("[BeatmapPlayer] No beatmap loaded!");
+            const string warningMessage = "[BeatmapPlayer] No beatmap loaded!";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
 
@@ -529,7 +533,9 @@ public class BeatmapPlayer : MonoBehaviour
     {
         if (!isLoaded || audioSource == null || audioSource.clip == null)
         {
-            Debug.LogWarning("[BeatmapPlayer] Cannot seek - no beatmap loaded or audio clip missing!");
+            const string warningMessage = "[BeatmapPlayer] Cannot seek - no beatmap loaded or audio clip missing!";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
         
@@ -560,7 +566,9 @@ public class BeatmapPlayer : MonoBehaviour
     {
         if (!isLoaded)
         {
-            Debug.LogWarning("[BeatmapPlayer] No beatmap loaded!");
+            const string warningMessage = "[BeatmapPlayer] No beatmap loaded!";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
         
@@ -636,7 +644,9 @@ public class BeatmapPlayer : MonoBehaviour
     {
         if (!isLoaded || currentBeatmap?.metadata == null)
         {
-            Debug.LogWarning("[BeatmapPlayer] Cannot initialize metronome - no beatmap loaded");
+            const string warningMessage = "[BeatmapPlayer] Cannot initialize metronome - no beatmap loaded";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
         
@@ -645,7 +655,9 @@ public class BeatmapPlayer : MonoBehaviour
         if (originalBpm <= 0)
         {
             originalBpm = 120f; // Default fallback
-            Debug.LogWarning($"[BeatmapPlayer] Invalid BPM, using default: {originalBpm}");
+            string warningMessage = $"[BeatmapPlayer] Invalid BPM, using default: {originalBpm}";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
         }
         
         // Start with original BPM
@@ -719,7 +731,9 @@ public class BeatmapPlayer : MonoBehaviour
                 bpmInputField.SetTextWithoutNotify(currentBpm.ToString("F0"));
             }
             UpdateBpmDisplay();
-            Debug.LogWarning($"[BeatmapPlayer] Invalid BPM input: {text}");
+            string warningMessage = $"[BeatmapPlayer] Invalid BPM input: {text}";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
         }
     }
 

@@ -9,6 +9,7 @@ public class LessonContentUI : MonoBehaviour
     [SerializeField] private TMP_Text lessonTitleText;
     [SerializeField] private TMP_Text lessonDescriptionText;
     [SerializeField] private TMP_Text lessonContentText;
+    [SerializeField] private TMP_Text learningObjectivesText;
 
     [Header("Action Buttons")]
     [SerializeField] private Button demonstrateButton;
@@ -146,6 +147,11 @@ public class LessonContentUI : MonoBehaviour
             lessonContentText.text = lesson.objective ?? string.Empty;
         }
 
+        if (learningObjectivesText != null)
+        {
+            learningObjectivesText.text = BuildLearningObjectivesText(lesson);
+        }
+
         bool hasPlayableVideo = lessonVideoPlayerUI != null && lessonVideoPlayerUI.HasPlayableVideo(lesson);
 
         if (watchVideoButton != null)
@@ -185,7 +191,9 @@ public class LessonContentUI : MonoBehaviour
     {
         if (currentLesson == null || currentLesson.exercises == null || currentLesson.exercises.Count == 0)
         {
-            Debug.LogWarning("[LessonContentUI] Cannot demonstrate: lesson has no exercises.");
+            const string warningMessage = "[LessonContentUI] Cannot demonstrate: lesson has no exercises.";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
 
@@ -193,7 +201,9 @@ public class LessonContentUI : MonoBehaviour
         CourseExerciseData firstExercise = currentLesson.exercises[0];
         if (string.IsNullOrEmpty(firstExercise.beatmapTitle))
         {
-            Debug.LogWarning("[LessonContentUI] Cannot demonstrate: first exercise has no beatmap title.");
+            const string warningMessage = "[LessonContentUI] Cannot demonstrate: first exercise has no beatmap title.";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
 
@@ -224,7 +234,9 @@ public class LessonContentUI : MonoBehaviour
     {
         if (currentLesson == null || currentModule == null || currentCourse == null)
         {
-            Debug.LogWarning("[LessonContentUI] Cannot complete lesson: missing course/module/lesson data.");
+            const string warningMessage = "[LessonContentUI] Cannot complete lesson: missing course/module/lesson data.";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
 
@@ -252,13 +264,17 @@ public class LessonContentUI : MonoBehaviour
     {
         if (lessonVideoPlayerUI == null)
         {
-            Debug.LogWarning("[LessonContentUI] No LessonVideoPlayerUI is assigned or available.");
+            const string warningMessage = "[LessonContentUI] No LessonVideoPlayerUI is assigned or available.";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
 
         if (!lessonVideoPlayerUI.PlayLesson(currentLesson))
         {
-            Debug.LogWarning("[LessonContentUI] No playable video source is configured for this lesson.");
+            const string warningMessage = "[LessonContentUI] No playable video source is configured for this lesson.";
+            Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
 
@@ -279,6 +295,21 @@ public class LessonContentUI : MonoBehaviour
         {
             closeVideoButton.gameObject.SetActive(false);
         }
+    }
+
+    private string BuildLearningObjectivesText(CourseLessonData lesson)
+    {
+        if (lesson == null)
+        {
+            return string.Empty;
+        }
+
+        if (lesson.learningObjectives == null || lesson.learningObjectives.Count == 0)
+        {
+            return lesson.objective ?? string.Empty;
+        }
+
+        return "- " + string.Join("\n- ", lesson.learningObjectives);
     }
 
     /// <summary>
@@ -303,6 +334,11 @@ public class LessonContentUI : MonoBehaviour
         if (lessonContentText != null)
         {
             lessonContentText.text = string.Empty;
+        }
+
+        if (learningObjectivesText != null)
+        {
+            learningObjectivesText.text = string.Empty;
         }
 
         if (watchVideoButton != null)

@@ -12,6 +12,7 @@ public class BeatmapAccordionUI : MonoBehaviour
     [SerializeField] private Transform accordionContent; // The "accordion" container
     [SerializeField] private GameObject accordionItemPrefab; // Prefab for accordion items
     [SerializeField] private bool allowAutoResolveBindings = false;
+    [SerializeField] private bool bindToBeatmapLibrary = true;
     [SerializeField] private BeatmapLibrary beatmapLibrary;
     [SerializeField] private BeatmapPlayer beatmapPlayer; // Reference to the player
     
@@ -39,22 +40,11 @@ public class BeatmapAccordionUI : MonoBehaviour
     
     private List<GameObject> accordionItems = new List<GameObject>();
     private bool isSubscribedToLibrary;
-    private static BeatmapAccordionUI activeAccordionInstance;
-    private bool ownsActiveInstance;
     private readonly HashSet<string> expandedBeatmapKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private bool missingSnipsContainerWarningLogged;
 
     void Awake()
     {
-        if (activeAccordionInstance != null && activeAccordionInstance != this)
-        {
-            enabled = false;
-            Debug.LogWarning($"[BeatmapAccordionUI] Disabled duplicate instance '{name}'. Active instance is '{activeAccordionInstance.name}'.");
-            return;
-        }
-
-        activeAccordionInstance = this;
-        ownsActiveInstance = true;
-
         ResolveAccordionReferences();
     }
     
@@ -66,6 +56,12 @@ public class BeatmapAccordionUI : MonoBehaviour
         }
 
         ResolveAccordionReferences();
+
+        if (!bindToBeatmapLibrary)
+        {
+            Debug.Log($"[BeatmapAccordionUI] Library binding disabled on '{name}' (scene: {gameObject.scene.name}, instance: {GetInstanceID()}).");
+            return;
+        }
 
         // Find library if not assigned
         if (beatmapLibrary == null)
@@ -114,17 +110,19 @@ public class BeatmapAccordionUI : MonoBehaviour
             beatmapLibrary.OnBeatmapAdded -= AddBeatmapToAccordion;
             isSubscribedToLibrary = false;
         }
-
-        if (ownsActiveInstance && activeAccordionInstance == this)
-        {
-            activeAccordionInstance = null;
-            ownsActiveInstance = false;
-        }
     }
     
     public void PopulateAccordion(List<BeatmapData> beatmaps)
     {
+        if (!bindToBeatmapLibrary)
+        {
+            return;
+        }
+
         Debug.Log($"[BeatmapAccordionUI] PopulateAccordion called with {beatmaps.Count} beatmaps");
+
+        // Avoid inherited expanded state across a full repopulation (e.g. after import/delete).
+        expandedBeatmapKeys.Clear();
         
         // Clear existing items
         ClearAccordion();
@@ -229,6 +227,8 @@ public class BeatmapAccordionUI : MonoBehaviour
 
         // Look for the Play button and add click listener
         Button playButton = FindButtonWithFallback(item.transform, actionsContainer != null ? actionsContainer.transform : null, playButtonPath);
+        if (playButton == null)
+            playButton = FindLikelyActionButton(item.transform, actionsContainer != null ? actionsContainer.transform : null, true, null);
         
         if (playButton != null)
         {
@@ -241,6 +241,8 @@ public class BeatmapAccordionUI : MonoBehaviour
         
         // Look for the Delete button and add click listener
         Button deleteButton = FindButtonWithFallback(item.transform, actionsContainer != null ? actionsContainer.transform : null, deleteButtonPath);
+        if (deleteButton == null)
+            deleteButton = FindLikelyActionButton(item.transform, actionsContainer != null ? actionsContainer.transform : null, false, playButton);
         
         if (deleteButton != null)
         {
@@ -255,7 +257,9 @@ public class BeatmapAccordionUI : MonoBehaviour
         Toggle itemToggle = item.GetComponent<Toggle>();
         if (itemToggle != null)
         {
-            SetActionButtonsVisible(playButton, deleteButton, actionsContainer, itemToggle.isOn);
+            // Start collapsed to prevent prefab default toggle state from expanding every item.
+            itemToggle.SetIsOnWithoutNotify(false);
+            SetActionButtonsVisible(playButton, deleteButton, actionsContainer, false);
             itemToggle.onValueChanged.AddListener(isOpen => SetActionButtonsVisible(playButton, deleteButton, actionsContainer, isOpen));
         }
 
@@ -264,8 +268,18 @@ public class BeatmapAccordionUI : MonoBehaviour
             Transform snipsContainer = FindTransformByPathOrName(item.transform, snipsContainerPath);
             bool hasChildren = PopulateSnipButtons(snipsContainer, children);
 
-            bool isExpanded = expandedBeatmapKeys.Contains(beatmapKey);
+            if (!hasChildren)
+                expandedBeatmapKeys.Remove(beatmapKey);
+
+            bool isExpanded = !string.IsNullOrEmpty(beatmapKey) && expandedBeatmapKeys.Contains(beatmapKey);
             SetSnipsContainerVisibility(snipsContainer, hasChildren && isExpanded);
+
+            if (itemToggle != null)
+            {
+                bool shouldOpen = hasChildren && isExpanded;
+                itemToggle.SetIsOnWithoutNotify(shouldOpen);
+                SetActionButtonsVisible(playButton, deleteButton, actionsContainer, shouldOpen);
+            }
 
             Button headerButton = null;
             Transform headerTransform = FindTransformByPathOrName(item.transform, parentHeaderButtonPath);
@@ -278,7 +292,6 @@ public class BeatmapAccordionUI : MonoBehaviour
 
             if (headerButton != null)
             {
-                headerButton.onClick.RemoveAllListeners();
                 headerButton.onClick.AddListener(() =>
                 {
                     ToggleBeatmapSnips(beatmapKey, snipsContainer, hasChildren);
@@ -313,9 +326,10 @@ public class BeatmapAccordionUI : MonoBehaviour
     {
         if (snipsContainer == null)
         {
-            if (children != null && children.Count > 0)
+            if (children != null && children.Count > 0 && !missingSnipsContainerWarningLogged)
             {
-                Debug.LogWarning($"[BeatmapAccordionUI] Parent has snips but no snips container found at '{snipsContainerPath}'.");
+                missingSnipsContainerWarningLogged = true;
+                Debug.LogWarning($"[BeatmapAccordionUI] Parent beatmaps have snips but no snips container was found at '{snipsContainerPath}'. Nested snips are disabled for this UI instance.");
             }
             return false;
         }
@@ -340,6 +354,13 @@ public class BeatmapAccordionUI : MonoBehaviour
         if (!hasChildren || snipsContainer == null)
         {
             SetSnipsContainerVisibility(snipsContainer, false);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(beatmapKey))
+        {
+            bool currentlyVisible = snipsContainer.gameObject.activeSelf;
+            SetSnipsContainerVisibility(snipsContainer, allowCollapseExpandedBeatmap ? !currentlyVisible : true);
             return;
         }
 
@@ -535,6 +556,33 @@ public class BeatmapAccordionUI : MonoBehaviour
             return null;
 
         return found.GetComponent<Button>();
+    }
+
+    Button FindLikelyActionButton(Transform itemRoot, Transform actionsRoot, bool preferPlay, Button excludeButton)
+    {
+        string[] prioritizedNames = preferPlay
+            ? new[] { "PlayButton", "Play", "play", "SelectButton", "Select", "select" }
+            : new[] { "DeleteButton", "Delete", "delete", "Remove", "remove", "Trash", "trash" };
+
+        foreach (string candidate in prioritizedNames)
+        {
+            Button candidateButton = FindButtonWithFallback(itemRoot, actionsRoot, candidate);
+            if (candidateButton != null && candidateButton != excludeButton)
+                return candidateButton;
+        }
+
+        Transform searchRoot = actionsRoot != null ? actionsRoot : itemRoot;
+        if (searchRoot == null)
+            return null;
+
+        Button[] allButtons = searchRoot.GetComponentsInChildren<Button>(true);
+        foreach (Button btn in allButtons)
+        {
+            if (btn != null && btn != excludeButton)
+                return btn;
+        }
+
+        return null;
     }
 
     Transform FindTransformByPathOrName(Transform root, string pathOrName)

@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 
 public class BeatmapSnipper : MonoBehaviour
 {
@@ -205,6 +206,7 @@ public class BeatmapSnipper : MonoBehaviour
         if (!beatmapPlayer.IsLoaded)
         {
             UnityEngine.Debug.LogWarning("[BeatmapSnipper] No beatmap loaded!");
+            ShowGlobalErrorPopup("Select a beatmap before trimming.");
             return;
         }
         
@@ -591,6 +593,7 @@ public class BeatmapSnipper : MonoBehaviour
         if (!beatmapPlayer.IsLoaded || beatmapPlayer.CurrentBeatmap == null)
         {
             UnityEngine.Debug.LogWarning("[BeatmapSnipper] No beatmap loaded!");
+            ShowGlobalErrorPopup("No beatmap selected. Load one before creating a snip.");
             return;
         }
         
@@ -641,6 +644,7 @@ public class BeatmapSnipper : MonoBehaviour
         if (trimmerPreviewAudioSource == null || trimmerPreviewAudioSource.clip == null)
         {
             UnityEngine.Debug.LogWarning("[BeatmapSnipper] Preview audio is not ready.");
+            ShowGlobalErrorPopup("Preview audio is not ready yet.");
             return;
         }
 
@@ -656,6 +660,19 @@ public class BeatmapSnipper : MonoBehaviour
     {
         if (trimmerPreviewAudioSource != null && trimmerPreviewAudioSource.isPlaying)
             trimmerPreviewAudioSource.Stop();
+    }
+
+    void ShowGlobalErrorPopup(string message)
+    {
+        Type popupType = Type.GetType("AppErrorPopup") ?? Type.GetType("AppErrorPopup, Assembly-CSharp");
+        if (popupType == null)
+            return;
+
+        MethodInfo showMethod = popupType.GetMethod("Show", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
+        if (showMethod != null)
+        {
+            showMethod.Invoke(null, new object[] { message });
+        }
     }
 
     void UpdateTrimmerPlayPauseIcon()
@@ -1232,10 +1249,18 @@ public class BeatmapSnipper : MonoBehaviour
             UnityEngine.Debug.Log($"[BeatmapSnipper] Saved snipped beatmap: {beatmap.title}");
             UnityEngine.Debug.Log($"[BeatmapSnipper] Contains {beatmap.beatmap.Count} notes");
             
-            // Add to library
+            // Load the snipped beatmap from disk to ensure correct path formatting for parent-child detection
             if (beatmapLibrary != null)
             {
-                beatmapLibrary.LoadAllBeatmaps(); // Reload to include the new snip
+                BeatmapData loadedSnip = beatmapLibrary.LoadBeatmapFromFolder(beatmapFolder);
+                if (loadedSnip != null)
+                {
+                    beatmapLibrary.AddBeatmap(loadedSnip);
+                }
+                else
+                {
+                    UnityEngine.Debug.LogWarning($"[BeatmapSnipper] Failed to load snipped beatmap from {beatmapFolder}");
+                }
             }
         }
         catch (Exception e)

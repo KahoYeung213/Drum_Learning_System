@@ -148,7 +148,7 @@ public class BeatmapLibrary : MonoBehaviour
         return Path.GetFileName(fullDirectoryPath);
     }
     
-    BeatmapData LoadBeatmapFromFolder(string folderPath)
+    public BeatmapData LoadBeatmapFromFolder(string folderPath)
     {
         try
         {

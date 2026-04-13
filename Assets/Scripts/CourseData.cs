@@ -33,6 +33,7 @@ public class CourseLessonData
     public string title;
     public string description;
     public string objective;
+    public List<string> learningObjectives = new List<string>();
     public List<LessonVideoData> learningVideos = new List<LessonVideoData>();
     public List<CourseExerciseData> exercises = new List<CourseExerciseData>();
 }

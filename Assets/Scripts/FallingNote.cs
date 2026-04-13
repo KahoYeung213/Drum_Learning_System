@@ -1,7 +1,17 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class FallingNote : MonoBehaviour
 {
+    private static readonly Dictionary<Renderer, FlashState> FlashStates = new Dictionary<Renderer, FlashState>();
+
+    private class FlashState
+    {
+        public int token;
+        public Color baselineEmission = Color.black;
+        public bool hasBaseline;
+    }
+
     private Vector3 _startPos;
     private Vector3 _endPos;
     private float _fallDuration;
@@ -14,8 +24,11 @@ public class FallingNote : MonoBehaviour
     private bool _isHit = false; // Track if this note has been hit
 
     [Header("Flash Safety")]
-    [SerializeField, Range(0f, 3f)] private float emissionIntensity = 0.9f;
+    [SerializeField, Range(0f, 3f)] private float emissionIntensity = 0.35f;
     [SerializeField, Range(0.02f, 0.5f)] private float flashDuration = 0.08f;
+    
+    [Header("Note Visual")]
+    [SerializeField, Range(0f, 3f)] private float noteEmissionIntensity = 0.25f;
     
     // Public properties for accessing data (used for hit detection and seeking)
     public float HitTime => _hitTime;
@@ -37,6 +50,33 @@ public class FallingNote : MonoBehaviour
         _lane = lane;
         _emissionColor = emissionColor;
         _elapsed = 0f;
+
+        ApplyLaneColorToNote();
+    }
+
+    void ApplyLaneColorToNote()
+    {
+        var noteRenderer = GetComponent<Renderer>();
+        if (noteRenderer == null) return;
+
+        Material noteMat = noteRenderer.material;
+
+        if (noteMat.HasProperty("_Color"))
+        {
+            noteMat.SetColor("_Color", _emissionColor);
+        }
+
+        if (noteMat.HasProperty("_BaseColor"))
+        {
+            noteMat.SetColor("_BaseColor", _emissionColor);
+        }
+
+        if (noteMat.HasProperty("_EmissionColor"))
+        {
+            noteMat.EnableKeyword("_EMISSION");
+            noteMat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            noteMat.SetColor("_EmissionColor", _emissionColor.linear * noteEmissionIntensity);
+        }
     }
 
     void Update()
@@ -70,13 +110,19 @@ public class FallingNote : MonoBehaviour
         }
 
         Material mat = renderer.material;
-        
-        // Store original emission
-        Color originalEmission = Color.black;
-        if (mat.HasProperty("_EmissionColor"))
+        if (!FlashStates.TryGetValue(renderer, out var flashState))
         {
-            originalEmission = mat.GetColor("_EmissionColor");
+            flashState = new FlashState();
+            FlashStates[renderer] = flashState;
         }
+
+        if (!flashState.hasBaseline && mat.HasProperty("_EmissionColor"))
+        {
+            flashState.baselineEmission = mat.GetColor("_EmissionColor");
+            flashState.hasBaseline = true;
+        }
+
+        int myToken = ++flashState.token;
         
         // Enable emission and set to the hitzone's emission color
         mat.EnableKeyword("_EMISSION");
@@ -89,11 +135,19 @@ public class FallingNote : MonoBehaviour
 
         yield return new WaitForSeconds(flashDuration);
 
-        // Restore original emission
+        if (!FlashStates.TryGetValue(renderer, out flashState) || flashState.token != myToken)
+        {
+            Destroy(gameObject);
+            yield break;
+        }
+
+        // Restore the emission value that was present before the first overlapping flash
         if (mat.HasProperty("_EmissionColor"))
         {
-            mat.SetColor("_EmissionColor", originalEmission);
+            mat.SetColor("_EmissionColor", flashState.baselineEmission);
         }
+
+        flashState.hasBaseline = false;
         
         Destroy(gameObject);
     }

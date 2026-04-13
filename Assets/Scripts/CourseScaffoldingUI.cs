@@ -31,6 +31,7 @@ public class CourseScaffoldingUI : MonoBehaviour
     [SerializeField] private string moduleHeaderButtonPath = "Header";
     [SerializeField] private string moduleTitleTextPath = "Header/Title";
     [SerializeField] private string moduleProgressBarPath = "Header/RawImage";
+    [SerializeField] private string moduleProgressFillPath = "Header/RawImage/Fill";
     [SerializeField] private string moduleProgressTextPath = "Header/RawImage/Progress text";
     [SerializeField] private string moduleLessonsContainerPath = "LessonsContainer";
     [SerializeField] private string lessonItemTextPath = "Title";
@@ -45,6 +46,7 @@ public class CourseScaffoldingUI : MonoBehaviour
     private GameObject moduleTemplateInstance;
     private CourseProgressManager progressManager;
     private readonly Dictionary<int, float> progressBarBaseWidths = new Dictionary<int, float>();
+    private readonly Dictionary<int, float> progressBarBaseAnchoredX = new Dictionary<int, float>();
 
     private void Start()
     {
@@ -286,6 +288,7 @@ public class CourseScaffoldingUI : MonoBehaviour
 
         bool expanded = moduleIndex == expandedModuleIndex;
         lessonsContainer.gameObject.SetActive(expanded);
+        SetModuleAccordionState(moduleItem, expanded);
         if (!expanded)
         {
             return;
@@ -338,6 +341,7 @@ public class CourseScaffoldingUI : MonoBehaviour
 
             bool expanded = moduleIndex == expandedModuleIndex;
             lessonsContainer.gameObject.SetActive(expanded);
+            SetModuleAccordionState(moduleItem.gameObject, expanded);
 
             if (expanded)
             {
@@ -490,6 +494,28 @@ public class CourseScaffoldingUI : MonoBehaviour
         }
     }
 
+    private void SetModuleAccordionState(GameObject moduleItem, bool expanded)
+    {
+        if (moduleItem == null)
+        {
+            return;
+        }
+
+        UIAccordionElement accordionElement = moduleItem.GetComponent<UIAccordionElement>();
+        if (accordionElement == null)
+        {
+            accordionElement = moduleItem.GetComponentInChildren<UIAccordionElement>(true);
+        }
+
+        if (accordionElement == null)
+        {
+            return;
+        }
+
+        accordionElement.SetIsOnWithoutNotify(expanded);
+        accordionElement.OnValueChanged(expanded);
+    }
+
     private void RefreshLessonStatusesForModule(GameObject moduleItem, CourseModuleData module, int moduleIndex)
     {
         if (moduleItem == null || module == null || module.lessons == null)
@@ -623,7 +649,19 @@ public class CourseScaffoldingUI : MonoBehaviour
             progressBarTransform = FindByPathOrSelf(moduleItem.transform, "header/RawImage");
         }
 
-        RawImage progressBar = progressBarTransform != null ? progressBarTransform.GetComponent<RawImage>() : null;
+        Transform progressFillTransform = FindByPathOrSelf(moduleItem.transform, moduleProgressFillPath);
+        if (progressFillTransform == null && progressBarTransform != null)
+        {
+            progressFillTransform = progressBarTransform.Find("Fill");
+        }
+
+        // Backward-compatible fallback: if no dedicated fill exists, shrink the bar itself.
+        if (progressFillTransform == null)
+        {
+            progressFillTransform = progressBarTransform;
+        }
+
+        RawImage progressBar = progressFillTransform != null ? progressFillTransform.GetComponent<RawImage>() : null;
         float currentBarWidth = 0f;
         float baseBarWidth = 0f;
         if (progressBar != null)
@@ -635,15 +673,18 @@ public class CourseScaffoldingUI : MonoBehaviour
                 progressBarBaseWidths[key] = Mathf.Max(0f, barRect.sizeDelta.x);
             }
 
-            // Keep the bar pinned to the left edge so shrinking width behaves like a fill.
-            barRect.anchorMin = new Vector2(0f, barRect.anchorMin.y);
-            barRect.anchorMax = new Vector2(0f, barRect.anchorMax.y);
-            barRect.pivot = new Vector2(0f, barRect.pivot.y);
-            barRect.anchoredPosition = new Vector2(0f, barRect.anchoredPosition.y);
+            if (!progressBarBaseAnchoredX.ContainsKey(key))
+            {
+                progressBarBaseAnchoredX[key] = barRect.anchoredPosition.x;
+            }
 
             baseBarWidth = progressBarBaseWidths[key];
             currentBarWidth = baseBarWidth * progress01;
             barRect.sizeDelta = new Vector2(currentBarWidth, barRect.sizeDelta.y);
+
+            // Preserve the prefab's original left edge regardless of pivot value.
+            float anchoredX = progressBarBaseAnchoredX[key] + barRect.pivot.x * (currentBarWidth - baseBarWidth);
+            barRect.anchoredPosition = new Vector2(anchoredX, barRect.anchoredPosition.y);
         }
 
         Transform progressTextTransform = FindByPathOrSelf(moduleItem.transform, moduleProgressTextPath);
@@ -664,7 +705,7 @@ public class CourseScaffoldingUI : MonoBehaviour
 
                 float rightPadding = 8f;
                 // Keep label visually fixed to the original right edge even if it remains a child of the shrinking bar.
-                if (progressBarTransform != null && progressTextTransform.parent == progressBarTransform && baseBarWidth > 0f)
+                if (progressFillTransform != null && progressTextTransform.parent == progressFillTransform && baseBarWidth > 0f)
                 {
                     float shrinkDelta = baseBarWidth - currentBarWidth;
                     textRect.anchoredPosition = new Vector2(-rightPadding + shrinkDelta, textRect.anchoredPosition.y);

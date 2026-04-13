@@ -27,6 +27,12 @@ public class BeatmapImporter : MonoBehaviour
     [SerializeField] private DragDropFileArea midiDropArea; // Drag-drop area for MIDI files
     [SerializeField] private DragDropFileArea audioDropArea; // Drag-drop area for audio files
     [SerializeField] private TMP_Text importStatusText; // Shows which files are ready
+
+    [Header("Transition Loading UI")]
+    [SerializeField] private GameObject transitionLoadingPanel; // Fullscreen/blocking panel shown between UI states
+    [SerializeField] private TMP_Text transitionLoadingText; // Optional status text
+    [SerializeField] private RectTransform transitionLoadingSpinner; // Optional spinner icon to rotate
+    [SerializeField] private float transitionSpinnerSpeed = 220f;
     
     [Header("Tap-to-Sync Preview UI")]
     [SerializeField] private GameObject previewPanel; // Panel shown during audio preview
@@ -80,6 +86,7 @@ public class BeatmapImporter : MonoBehaviour
     private AudioSource previewAudioSource;
     private float markedDrumStartTime = -1f;
     private bool isPreviewMode = false;
+    private bool isTransitionLoading = false;
     private Texture2D waveformTexture;
     private WaveformSeekArea waveformSeekArea;
     
@@ -119,6 +126,8 @@ public class BeatmapImporter : MonoBehaviour
         {
             previewPanel.SetActive(false);
         }
+
+        SetTransitionLoading(false);
 
         SetupImportLinkHandling();
         
@@ -174,7 +183,9 @@ public class BeatmapImporter : MonoBehaviour
     {
         if (importPanel == null)
         {
-            UnityEngine.Debug.LogWarning("[BeatmapImporter] Import panel is not assigned.");
+            const string warningMessage = "[BeatmapImporter] Import panel is not assigned.";
+            UnityEngine.Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
 
@@ -186,7 +197,9 @@ public class BeatmapImporter : MonoBehaviour
     {
         if (string.IsNullOrEmpty(selectedMidiPath) || string.IsNullOrEmpty(selectedAudioPath))
         {
-            UnityEngine.Debug.LogWarning("[BeatmapImporter] Please select both MIDI and audio files before confirming.");
+            const string warningMessage = "[BeatmapImporter] Please select both MIDI and audio files before confirming.";
+            UnityEngine.Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             UpdateImportStatus();
             return;
         }
@@ -198,6 +211,8 @@ public class BeatmapImporter : MonoBehaviour
         if (importPanel != null)
             importPanel.SetActive(false);
 
+        SetTransitionLoading(true, "Preparing audio preview...");
+
         StartCoroutine(ProcessImportWithDragDropFiles(selectedMidiPath, selectedAudioPath));
     }
 
@@ -205,6 +220,8 @@ public class BeatmapImporter : MonoBehaviour
     {
         if (importPanel != null)
             importPanel.SetActive(false);
+
+        SetTransitionLoading(false);
 
         ResetDragDropSelection();
         UnityEngine.Debug.Log("[BeatmapImporter] Import panel closed.");
@@ -243,7 +260,9 @@ public class BeatmapImporter : MonoBehaviour
                 }
                 else
                 {
-                    UnityEngine.Debug.LogWarning("No audio file selected. Import cancelled.");
+                    const string warningMessage = "No audio file selected. Import cancelled.";
+                    UnityEngine.Debug.LogWarning(warningMessage);
+                    AppErrorPopup.Show(warningMessage);
                     tempMidiPath = null;
                 }
             }
@@ -281,6 +300,7 @@ public class BeatmapImporter : MonoBehaviour
     {
         isPreviewMode = true;
         markedDrumStartTime = -1f;
+        SetTransitionLoading(false);
 
         if (previewAudioSource != null)
         {
@@ -318,6 +338,11 @@ public class BeatmapImporter : MonoBehaviour
     
     void Update()
     {
+        if (isTransitionLoading && transitionLoadingSpinner != null)
+        {
+            transitionLoadingSpinner.Rotate(0f, 0f, -transitionSpinnerSpeed * Time.unscaledDeltaTime);
+        }
+
         if (isPreviewMode)
         {
             UpdatePreviewUI();
@@ -326,6 +351,8 @@ public class BeatmapImporter : MonoBehaviour
     
     void OnDestroy()
     {
+        SetTransitionLoading(false);
+
         // Clean up preview audio
         if (previewAudioSource != null && previewAudioSource.isPlaying)
         {
@@ -733,11 +760,14 @@ public class BeatmapImporter : MonoBehaviour
     {
         if (markedDrumStartTime < 0f)
         {
-            UnityEngine.Debug.LogWarning("No drum start time marked!");
+            const string warningMessage = "No drum start time marked!";
+            UnityEngine.Debug.LogWarning(warningMessage);
+            AppErrorPopup.Show(warningMessage);
             return;
         }
         
         ExitPreviewMode();
+        SetTransitionLoading(true, "Generating beatmap...");
         StartCoroutine(ProcessBeatmap());
     }
     
@@ -757,6 +787,8 @@ public class BeatmapImporter : MonoBehaviour
     
     IEnumerator ProcessBeatmap()
     {
+        SetTransitionLoading(true, "Generating beatmap...");
+
         UnityEngine.Debug.Log($"Processing MIDI: {tempMidiPath}");
         UnityEngine.Debug.Log($"With audio: {tempAudioPath}");
         
@@ -777,7 +809,9 @@ public class BeatmapImporter : MonoBehaviour
             }
             else
             {
-                UnityEngine.Debug.LogWarning($"Invalid offset input '{drumOffsetInput.text}', using default: {defaultDrumStartOffset}s");
+                string warningMessage = $"Invalid offset input '{drumOffsetInput.text}', using default: {defaultDrumStartOffset}s";
+                UnityEngine.Debug.LogWarning(warningMessage);
+                AppErrorPopup.Show(warningMessage);
             }
         }
         
@@ -804,6 +838,7 @@ public class BeatmapImporter : MonoBehaviour
         File.Copy(tempAudioPath, audioCopyPath, true);
         
         // Parse MIDI to JSON with offset
+        SetTransitionLoading(true, "Parsing MIDI and building beatmap...");
         yield return StartCoroutine(RunPythonParser(midiCopyPath, jsonPath, drumStartOffset));
         
         // Load and create BeatmapData
@@ -831,6 +866,8 @@ public class BeatmapImporter : MonoBehaviour
         markedDrumStartTime = -1f;
         RefreshPreciseTimeInput();
         UpdateMarkedTimeMarker();
+
+        SetTransitionLoading(false);
     }
     
     IEnumerator RunPythonParser(string inputPath, string outputPath, float drumStartOffset)
@@ -979,6 +1016,7 @@ public class BeatmapImporter : MonoBehaviour
             if (www.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
             {
                 UnityEngine.Debug.LogError($"Failed to load audio: {www.error}");
+                SetTransitionLoading(false);
                 yield break;
             }
             
@@ -987,6 +1025,7 @@ public class BeatmapImporter : MonoBehaviour
             if (clip == null)
             {
                 UnityEngine.Debug.LogError("Failed to create audio clip!");
+                SetTransitionLoading(false);
                 yield break;
             }
             
@@ -995,6 +1034,21 @@ public class BeatmapImporter : MonoBehaviour
             
             // Show preview panel
             EnterPreviewMode();
+        }
+    }
+
+    void SetTransitionLoading(bool isVisible, string statusText = "Loading...")
+    {
+        isTransitionLoading = isVisible;
+
+        if (transitionLoadingText != null)
+        {
+            transitionLoadingText.text = isVisible ? statusText : string.Empty;
+        }
+
+        if (transitionLoadingPanel != null)
+        {
+            transitionLoadingPanel.SetActive(isVisible);
         }
     }
     
