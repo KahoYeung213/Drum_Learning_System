@@ -22,16 +22,13 @@
                 "Control rebound with even stick height in both hands.",
                 "Maintain balanced posture and wrist motion while striking."
               ],
-              "exercises": [
+              "learningVideos": [
                 {
-                  "id": "exercise-holding-sticks-1",
-                  "title": "Grip Setup - 60 BPM",
-                  "description": "Light stroke control while maintaining proper grip.",
-                  "beatmapTitle": "Single Strokes 60",
-                  "beatmapJsonPath": "SingleStrokes60/beatmap.json",
-                  "requiredScore": 65
+                  "title": "How to Hold Drumsticks",
+                  "videoFilePath": "Videos/Rudiments/drumstick.mp4",
+                  "youtubeUrl": "https://www.youtube.com/watch?v=KdlKH0BhRsU"
                 }
-              ]
+              ] 
             },
             {
               "id": "lesson-introduction-to-kit",

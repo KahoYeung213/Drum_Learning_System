@@ -14,6 +14,7 @@ public class CourseProgressManager : MonoBehaviour
     private class CourseProgressSave
     {
         public List<CompletedExerciseEntry> completedExercises = new List<CompletedExerciseEntry>();
+        public List<CompletedLessonEntry> completedLessons = new List<CompletedLessonEntry>();
     }
 
     [Serializable]
@@ -23,7 +24,14 @@ public class CourseProgressManager : MonoBehaviour
         public int bestScore;
     }
 
+    [Serializable]
+    private class CompletedLessonEntry
+    {
+        public string key;
+    }
+
     private readonly Dictionary<string, int> completedExerciseScores = new Dictionary<string, int>();
+    private readonly HashSet<string> completedLessonKeys = new HashSet<string>();
 
     private void Awake()
     {
@@ -57,6 +65,17 @@ public class CourseProgressManager : MonoBehaviour
         {
             completedExerciseScores.Add(key, score);
         }
+
+        if (saveOnCompletion)
+        {
+            SaveProgress();
+        }
+    }
+
+    public void MarkLessonCompleted(string courseId, string moduleId, string lessonId)
+    {
+        string key = BuildLessonKey(courseId, moduleId, lessonId);
+        completedLessonKeys.Add(key);
 
         if (saveOnCompletion)
         {
@@ -119,7 +138,17 @@ public class CourseProgressManager : MonoBehaviour
 
     public bool IsLessonCompleted(DrumCourseData course, CourseModuleData module, CourseLessonData lesson)
     {
-        if (course == null || module == null || lesson == null || lesson.exercises == null || lesson.exercises.Count == 0)
+        if (course == null || module == null || lesson == null)
+        {
+            return false;
+        }
+
+        if (completedLessonKeys.Contains(BuildLessonKey(course.id, module.id, lesson.id)))
+        {
+            return true;
+        }
+
+        if (lesson.exercises == null || lesson.exercises.Count == 0)
         {
             return false;
         }
@@ -137,7 +166,17 @@ public class CourseProgressManager : MonoBehaviour
 
     public float GetLessonCompletionPercent(DrumCourseData course, CourseModuleData module, CourseLessonData lesson)
     {
-        if (course == null || module == null || lesson == null || lesson.exercises == null || lesson.exercises.Count == 0)
+        if (course == null || module == null || lesson == null)
+        {
+            return 0f;
+        }
+
+        if (completedLessonKeys.Contains(BuildLessonKey(course.id, module.id, lesson.id)))
+        {
+            return 1f;
+        }
+
+        if (lesson.exercises == null || lesson.exercises.Count == 0)
         {
             return 0f;
         }
@@ -164,6 +203,14 @@ public class CourseProgressManager : MonoBehaviour
             {
                 key = pair.Key,
                 bestScore = pair.Value
+            });
+        }
+
+        foreach (string lessonKey in completedLessonKeys)
+        {
+            save.completedLessons.Add(new CompletedLessonEntry
+            {
+                key = lessonKey
             });
         }
 
@@ -202,6 +249,17 @@ public class CourseProgressManager : MonoBehaviour
                     completedExerciseScores[entry.key] = entry.bestScore;
                 }
             }
+
+            if (save.completedLessons != null)
+            {
+                foreach (CompletedLessonEntry entry in save.completedLessons)
+                {
+                    if (!string.IsNullOrEmpty(entry.key))
+                    {
+                        completedLessonKeys.Add(entry.key);
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -212,6 +270,7 @@ public class CourseProgressManager : MonoBehaviour
     public void ResetAllProgress()
     {
         completedExerciseScores.Clear();
+        completedLessonKeys.Clear();
         PlayerPrefs.DeleteKey(ProgressKey);
         PlayerPrefs.Save();
     }
@@ -235,5 +294,10 @@ public class CourseProgressManager : MonoBehaviour
     private static string BuildExerciseKey(string courseId, string moduleId, string lessonId, string exerciseId)
     {
         return $"{courseId}|{moduleId}|{lessonId}|{exerciseId}";
+    }
+
+    private static string BuildLessonKey(string courseId, string moduleId, string lessonId)
+    {
+        return $"{courseId}|{moduleId}|{lessonId}";
     }
 }

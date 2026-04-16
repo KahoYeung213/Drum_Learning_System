@@ -152,6 +152,10 @@ public class LessonContentUI : MonoBehaviour
             learningObjectivesText.text = BuildLearningObjectivesText(lesson);
         }
 
+        bool hasExercises = lesson.exercises != null && lesson.exercises.Count > 0;
+        UpdateExerciseActionVisibility(hasExercises);
+        TryAutoCompleteLessonWithoutExercises(hasExercises);
+
         bool hasPlayableVideo = lessonVideoPlayerUI != null && lessonVideoPlayerUI.HasPlayableVideo(lesson);
 
         if (watchVideoButton != null)
@@ -185,6 +189,36 @@ public class LessonContentUI : MonoBehaviour
         }
 
         OnLessonDisplayed?.Invoke(lesson);
+    }
+
+    private void UpdateExerciseActionVisibility(bool hasExercises)
+    {
+        if (demonstrateButton != null)
+        {
+            demonstrateButton.gameObject.SetActive(hasExercises);
+        }
+
+        if (completeLessonButton != null)
+        {
+            completeLessonButton.gameObject.SetActive(hasExercises);
+        }
+    }
+
+    private void TryAutoCompleteLessonWithoutExercises(bool hasExercises)
+    {
+        if (hasExercises || progressManager == null || currentCourse == null || currentModule == null || currentLesson == null)
+        {
+            return;
+        }
+
+        if (progressManager.IsLessonCompleted(currentCourse, currentModule, currentLesson))
+        {
+            return;
+        }
+
+        progressManager.MarkLessonCompleted(currentCourse.id, currentModule.id, currentLesson.id);
+        progressManager.SaveProgress();
+        OnCompleteLessonRequested?.Invoke(currentCourse.id, currentModule.id, currentLesson.id, "");
     }
 
     private void OnDemonstrateClicked()
@@ -242,16 +276,23 @@ public class LessonContentUI : MonoBehaviour
 
         if (progressManager != null)
         {
-            // Mark all exercises in the lesson as completed with max score
-            foreach (CourseExerciseData exercise in currentLesson.exercises)
+            if (currentLesson.exercises == null || currentLesson.exercises.Count == 0)
             {
-                progressManager.MarkExerciseCompleted(
-                    currentCourse.id,
-                    currentModule.id,
-                    currentLesson.id,
-                    exercise.id,
-                    100 // Full score
-                );
+                progressManager.MarkLessonCompleted(currentCourse.id, currentModule.id, currentLesson.id);
+            }
+            else
+            {
+                // Mark all exercises in the lesson as completed with max score.
+                foreach (CourseExerciseData exercise in currentLesson.exercises)
+                {
+                    progressManager.MarkExerciseCompleted(
+                        currentCourse.id,
+                        currentModule.id,
+                        currentLesson.id,
+                        exercise.id,
+                        100 // Full score
+                    );
+                }
             }
 
             progressManager.SaveProgress();
@@ -344,6 +385,16 @@ public class LessonContentUI : MonoBehaviour
         if (watchVideoButton != null)
         {
             watchVideoButton.interactable = false;
+        }
+
+        if (demonstrateButton != null)
+        {
+            demonstrateButton.gameObject.SetActive(false);
+        }
+
+        if (completeLessonButton != null)
+        {
+            completeLessonButton.gameObject.SetActive(false);
         }
 
         if (closeVideoButton != null)
