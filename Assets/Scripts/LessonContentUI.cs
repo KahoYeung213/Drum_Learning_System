@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -10,6 +11,7 @@ public class LessonContentUI : MonoBehaviour
     [SerializeField] private TMP_Text lessonDescriptionText;
     [SerializeField] private TMP_Text lessonContentText;
     [SerializeField] private TMP_Text learningObjectivesText;
+    [SerializeField] private TMP_Text exerciseTitleText;
 
     [Header("Action Buttons")]
     [SerializeField] private Button demonstrateButton;
@@ -152,6 +154,18 @@ public class LessonContentUI : MonoBehaviour
             learningObjectivesText.text = BuildLearningObjectivesText(lesson);
         }
 
+        if (exerciseTitleText != null)
+        {
+            if (lesson.exercises != null && lesson.exercises.Count > 0)
+            {
+                exerciseTitleText.text = lesson.exercises[0].title ?? string.Empty;
+            }
+            else
+            {
+                exerciseTitleText.text = string.Empty;
+            }
+        }
+
         bool hasExercises = lesson.exercises != null && lesson.exercises.Count > 0;
         UpdateExerciseActionVisibility(hasExercises);
         TryAutoCompleteLessonWithoutExercises(hasExercises);
@@ -233,28 +247,36 @@ public class LessonContentUI : MonoBehaviour
 
         // Get the first exercise's beatmap
         CourseExerciseData firstExercise = currentLesson.exercises[0];
-        if (string.IsNullOrEmpty(firstExercise.beatmapTitle))
+        if (string.IsNullOrEmpty(firstExercise.beatmapTitle) && string.IsNullOrEmpty(firstExercise.beatmapJsonPath))
         {
-            const string warningMessage = "[LessonContentUI] Cannot demonstrate: first exercise has no beatmap title.";
+            const string warningMessage = "[LessonContentUI] Cannot demonstrate: first exercise has no beatmap title or beatmap path.";
             Debug.LogWarning(warningMessage);
             AppErrorPopup.Show(warningMessage);
             return;
         }
 
-        // Load the beatmap associated with the first exercise
-        if (beatmapLibrary != null)
-        {
-            BeatmapData beatmap = beatmapLibrary.GetBeatmapByTitle(firstExercise.beatmapTitle);
+        BeatmapData beatmap = null;
 
-            if (beatmap != null && beatmapPlayer != null)
-            {
-                beatmapPlayer.LoadBeatmap(beatmap);
-            }
-            else
-            {
-                Debug.LogError($"[LessonContentUI] Could not load beatmap '{firstExercise.beatmapTitle}'.");
-                return;
-            }
+        // Try title lookup first (normal flow).
+        if (beatmapLibrary != null && !string.IsNullOrEmpty(firstExercise.beatmapTitle))
+        {
+            beatmap = beatmapLibrary.GetBeatmapByTitle(firstExercise.beatmapTitle);
+        }
+
+        // If the beatmap was removed from the runtime library, recover it from disk path.
+        if (beatmap == null)
+        {
+            beatmap = TryLoadBeatmapFromExercise(firstExercise);
+        }
+
+        if (beatmap != null && beatmapPlayer != null)
+        {
+            beatmapPlayer.LoadBeatmap(beatmap);
+        }
+        else
+        {
+            Debug.LogError($"[LessonContentUI] Could not load beatmap '{firstExercise.beatmapTitle}'.");
+            return;
         }
 
         // Switch to freeplay mode to demonstrate
@@ -262,6 +284,48 @@ public class LessonContentUI : MonoBehaviour
         {
             gameModeManager.SwitchToFreePlayMode();
         }
+    }
+
+    private BeatmapData TryLoadBeatmapFromExercise(CourseExerciseData exercise)
+    {
+        if (beatmapLibrary == null || exercise == null || string.IsNullOrWhiteSpace(exercise.beatmapJsonPath))
+        {
+            return null;
+        }
+
+        string relativeJsonPath = exercise.beatmapJsonPath.Replace('/', Path.DirectorySeparatorChar);
+
+        string persistentJsonPath = Path.Combine(Application.persistentDataPath, "Beatmaps", relativeJsonPath);
+        string streamingJsonPath = Path.Combine(Application.streamingAssetsPath, "Beatmaps", relativeJsonPath);
+
+        string selectedJsonPath = null;
+        if (File.Exists(persistentJsonPath))
+        {
+            selectedJsonPath = persistentJsonPath;
+        }
+        else if (File.Exists(streamingJsonPath))
+        {
+            selectedJsonPath = streamingJsonPath;
+        }
+
+        if (string.IsNullOrEmpty(selectedJsonPath))
+        {
+            return null;
+        }
+
+        string folderPath = Path.GetDirectoryName(selectedJsonPath);
+        if (string.IsNullOrEmpty(folderPath))
+        {
+            return null;
+        }
+
+        BeatmapData loadedBeatmap = beatmapLibrary.LoadBeatmapFromFolder(folderPath);
+        if (loadedBeatmap != null)
+        {
+            beatmapLibrary.AddBeatmap(loadedBeatmap);
+        }
+
+        return loadedBeatmap;
     }
 
     private void OnCompleteLessonClicked()
@@ -380,6 +444,11 @@ public class LessonContentUI : MonoBehaviour
         if (learningObjectivesText != null)
         {
             learningObjectivesText.text = string.Empty;
+        }
+
+        if (exerciseTitleText != null)
+        {
+            exerciseTitleText.text = string.Empty;
         }
 
         if (watchVideoButton != null)

@@ -81,18 +81,18 @@
               "exercises": [
                 {
                   "id": "exercise-single-1",
-                  "title": "Single Strokes - 60 BPM",
-                  "description": "Quarter-note single strokes.",
-                  "beatmapTitle": "Single Strokes 60",
-                  "beatmapJsonPath": "SingleStrokes60/beatmap.json",
+                  "title": "Single Strokes",
+                  "description": "sixteenth-note single strokes.",
+                  "beatmapTitle": "single",
+                  "beatmapJsonPath": "Rudiments/single/beatmap.json",
                   "requiredScore": 70
                 },
                 {
                   "id": "exercise-single-2",
-                  "title": "Single Strokes - 80 BPM",
-                  "description": "Increase control at medium tempo.",
-                  "beatmapTitle": "Single Strokes 80",
-                  "beatmapJsonPath": "SingleStrokes80/beatmap.json",
+                  "title": "Single Strokes",
+                  "description": "Increase control at faster tempo.",
+                  "beatmapTitle": "single Fast",
+                  "beatmapJsonPath": "Rudiments/single Fast/beatmap.json",
                   "requiredScore": 75
                 }
               ]

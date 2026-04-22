@@ -88,6 +88,12 @@ public class GameModeManager : MonoBehaviour
         
         Debug.Log($"[GameModeManager] Initialized in {currentMode} mode");
     }
+
+    void OnEnable()
+    {
+        // Resync UI whenever this component is re-enabled.
+        UpdateModeUI(false);
+    }
     
     /// <summary>
     /// Toggle between Learning and Gameplay modes
@@ -120,11 +126,8 @@ public class GameModeManager : MonoBehaviour
     {
         AppMode targetMode = learningMode ? AppMode.FreePlay : AppMode.Gameplay;
 
-        if (currentMode != targetMode)
-        {
-            currentMode = targetMode;
-            UpdateModeUI(true);
-        }
+        currentMode = targetMode;
+        UpdateModeUI(true);
     }
 
     /// <summary>
@@ -132,11 +135,8 @@ public class GameModeManager : MonoBehaviour
     /// </summary>
     public void SwitchToFreePlayMode()
     {
-        if (currentMode != AppMode.FreePlay)
-        {
-            currentMode = AppMode.FreePlay;
-            UpdateModeUI(true);
-        }
+        currentMode = AppMode.FreePlay;
+        UpdateModeUI(true);
     }
 
     /// <summary>
@@ -144,11 +144,8 @@ public class GameModeManager : MonoBehaviour
     /// </summary>
     public void SwitchToGameplayMode()
     {
-        if (currentMode != AppMode.Gameplay)
-        {
-            currentMode = AppMode.Gameplay;
-            UpdateModeUI(true);
-        }
+        currentMode = AppMode.Gameplay;
+        UpdateModeUI(true);
     }
 
     /// <summary>
@@ -156,11 +153,17 @@ public class GameModeManager : MonoBehaviour
     /// </summary>
     public void SwitchToCourseMode()
     {
-        if (currentMode != AppMode.Course)
-        {
-            currentMode = AppMode.Course;
-            UpdateModeUI(true);
-        }
+        currentMode = AppMode.Course;
+        UpdateModeUI(true);
+    }
+
+    /// <summary>
+    /// Force a UI refresh from current mode state.
+    /// Useful for recovering from external UI state changes.
+    /// </summary>
+    public void RefreshModeUI()
+    {
+        UpdateModeUI(false);
     }
     
     /// <summary>

@@ -825,7 +825,7 @@ public class BeatmapImporter : MonoBehaviour
             beatmapName = beatmapName + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
             beatmapFolder = Path.Combine(beatmapsDirectory, beatmapName);
         }
-        
+
         Directory.CreateDirectory(beatmapFolder);
         
         // Define file paths

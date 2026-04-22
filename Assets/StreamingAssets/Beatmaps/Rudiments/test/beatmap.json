@@ -1,0 +1,674 @@
+{
+  "metadata": {
+    "title": "test",
+    "source": "C:/Users/Administrator/Desktop/drum learning system/Drum_Learning_System/Assets/StreamingAssets\\Beatmaps\\Rudiments\\test\\test.mid",
+    "tempo_map": [
+      [
+        0.0,
+        88.0
+      ]
+    ],
+    "bpm_min": 88.0,
+    "bpm_max": 88.0,
+    "bpm_avg": 88.0,
+    "time_signatures": [
+      "4/4"
+    ],
+    "length_seconds": 27.204545,
+    "approx_total_beats": 39.9,
+    "events_count": 107,
+    "lanes_used": [
+      0,
+      1,
+      2,
+      3,
+      5
+    ],
+    "events_per_second": 3.933,
+    "drum_start_offset": 0.0
+  },
+  "beatmap": [
+    {
+      "lane": 3,
+      "time": 5.045455,
+      "spawnTime": 2.045455,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 5.215909,
+      "spawnTime": 2.215909,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 5.386364,
+      "spawnTime": 2.386364,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 5.556818,
+      "spawnTime": 2.556818,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 5.727273,
+      "spawnTime": 2.727273,
+      "velocity": 80
+    },
+    {
+      "lane": 1,
+      "time": 5.727273,
+      "spawnTime": 2.727273,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 6.068182,
+      "spawnTime": 3.068182,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 6.409091,
+      "spawnTime": 3.409091,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 6.409091,
+      "spawnTime": 3.409091,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 6.75,
+      "spawnTime": 3.75,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 7.090909,
+      "spawnTime": 4.090909,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 7.090909,
+      "spawnTime": 4.090909,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 7.431818,
+      "spawnTime": 4.431818,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 7.431818,
+      "spawnTime": 4.431818,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 7.772727,
+      "spawnTime": 4.772727,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 7.772727,
+      "spawnTime": 4.772727,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 8.113636,
+      "spawnTime": 5.113636,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 8.454545,
+      "spawnTime": 5.454545,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 8.454545,
+      "spawnTime": 5.454545,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 8.795455,
+      "spawnTime": 5.795455,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 9.136364,
+      "spawnTime": 6.136364,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 9.136364,
+      "spawnTime": 6.136364,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 9.477273,
+      "spawnTime": 6.477273,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 9.818182,
+      "spawnTime": 6.818182,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 9.818182,
+      "spawnTime": 6.818182,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 10.159091,
+      "spawnTime": 7.159091,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 10.159091,
+      "spawnTime": 7.159091,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 10.5,
+      "spawnTime": 7.5,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 10.5,
+      "spawnTime": 7.5,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 10.840909,
+      "spawnTime": 7.840909,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 11.181818,
+      "spawnTime": 8.181818,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 11.181818,
+      "spawnTime": 8.181818,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 11.522727,
+      "spawnTime": 8.522727,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 11.863636,
+      "spawnTime": 8.863636,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 11.863636,
+      "spawnTime": 8.863636,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 12.204545,
+      "spawnTime": 9.204545,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 12.545455,
+      "spawnTime": 9.545455,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 12.545455,
+      "spawnTime": 9.545455,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 12.886364,
+      "spawnTime": 9.886364,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 12.886364,
+      "spawnTime": 9.886364,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 13.227273,
+      "spawnTime": 10.227273,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 13.227273,
+      "spawnTime": 10.227273,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 13.568182,
+      "spawnTime": 10.568182,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 13.909091,
+      "spawnTime": 10.909091,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 13.909091,
+      "spawnTime": 10.909091,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 14.25,
+      "spawnTime": 11.25,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 14.590909,
+      "spawnTime": 11.590909,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 14.590909,
+      "spawnTime": 11.590909,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 14.931818,
+      "spawnTime": 11.931818,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 15.272727,
+      "spawnTime": 12.272727,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 15.272727,
+      "spawnTime": 12.272727,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 15.613636,
+      "spawnTime": 12.613636,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 15.784091,
+      "spawnTime": 12.784091,
+      "velocity": 80
+    },
+    {
+      "lane": 5,
+      "time": 15.954545,
+      "spawnTime": 12.954545,
+      "velocity": 80
+    },
+    {
+      "lane": 5,
+      "time": 16.295455,
+      "spawnTime": 13.295455,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 16.636364,
+      "spawnTime": 13.636364,
+      "velocity": 80
+    },
+    {
+      "lane": 1,
+      "time": 16.636364,
+      "spawnTime": 13.636364,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 16.977273,
+      "spawnTime": 13.977273,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 17.318182,
+      "spawnTime": 14.318182,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 17.318182,
+      "spawnTime": 14.318182,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 17.659091,
+      "spawnTime": 14.659091,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 18.0,
+      "spawnTime": 15.0,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 18.0,
+      "spawnTime": 15.0,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 18.340909,
+      "spawnTime": 15.340909,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 18.340909,
+      "spawnTime": 15.340909,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 18.681818,
+      "spawnTime": 15.681818,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 18.681818,
+      "spawnTime": 15.681818,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 19.022727,
+      "spawnTime": 16.022727,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 19.363636,
+      "spawnTime": 16.363636,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 19.363636,
+      "spawnTime": 16.363636,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 19.704545,
+      "spawnTime": 16.704545,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 20.045455,
+      "spawnTime": 17.045455,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 20.045455,
+      "spawnTime": 17.045455,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 20.386364,
+      "spawnTime": 17.386364,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 20.727273,
+      "spawnTime": 17.727273,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 20.727273,
+      "spawnTime": 17.727273,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 21.068182,
+      "spawnTime": 18.068182,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 21.068182,
+      "spawnTime": 18.068182,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 21.409091,
+      "spawnTime": 18.409091,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 21.409091,
+      "spawnTime": 18.409091,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 21.75,
+      "spawnTime": 18.75,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 22.090909,
+      "spawnTime": 19.090909,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 22.090909,
+      "spawnTime": 19.090909,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 22.431818,
+      "spawnTime": 19.431818,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 22.772727,
+      "spawnTime": 19.772727,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 22.772727,
+      "spawnTime": 19.772727,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 23.113636,
+      "spawnTime": 20.113636,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 23.454545,
+      "spawnTime": 20.454545,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 23.454545,
+      "spawnTime": 20.454545,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 23.795455,
+      "spawnTime": 20.795455,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 23.795455,
+      "spawnTime": 20.795455,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 24.136364,
+      "spawnTime": 21.136364,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 24.136364,
+      "spawnTime": 21.136364,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 24.477273,
+      "spawnTime": 21.477273,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 24.818182,
+      "spawnTime": 21.818182,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 24.818182,
+      "spawnTime": 21.818182,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 25.159091,
+      "spawnTime": 22.159091,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 25.5,
+      "spawnTime": 22.5,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 25.5,
+      "spawnTime": 22.5,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 25.840909,
+      "spawnTime": 22.840909,
+      "velocity": 80
+    },
+    {
+      "lane": 0,
+      "time": 26.181818,
+      "spawnTime": 23.181818,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 26.181818,
+      "spawnTime": 23.181818,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 26.522727,
+      "spawnTime": 23.522727,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 26.522727,
+      "spawnTime": 23.522727,
+      "velocity": 80
+    },
+    {
+      "lane": 3,
+      "time": 26.863636,
+      "spawnTime": 23.863636,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 26.863636,
+      "spawnTime": 23.863636,
+      "velocity": 80
+    },
+    {
+      "lane": 2,
+      "time": 27.204545,
+      "spawnTime": 24.204545,
+      "velocity": 80
+    }
+  ]
+}

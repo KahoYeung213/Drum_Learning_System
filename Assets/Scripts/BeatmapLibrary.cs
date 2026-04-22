@@ -73,6 +73,7 @@ public class BeatmapLibrary : MonoBehaviour
             }
 
             BeatmapData beatmap = LoadBeatmapFromFolder(folder);
+
             if (beatmap != null)
             {
                 beatmaps.Add(beatmap);

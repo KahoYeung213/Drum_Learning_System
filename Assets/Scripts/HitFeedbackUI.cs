@@ -11,6 +11,7 @@ public class HitFeedbackUI : MonoBehaviour
     [Header("References")]
     [SerializeField] private HitDetector hitDetector;
     [SerializeField] private BeatmapPlayer beatmapPlayer;
+    [SerializeField] private GameModeManager gameModeManager;
     
     [Header("UI Elements")]
     [SerializeField] private TextMeshProUGUI scoreText;
@@ -54,6 +55,9 @@ public class HitFeedbackUI : MonoBehaviour
 
         if (beatmapPlayer == null)
             beatmapPlayer = FindFirstObjectByType<BeatmapPlayer>();
+
+        if (gameModeManager == null)
+            gameModeManager = FindFirstObjectByType<GameModeManager>();
         
         if (hitDetector != null)
         {
@@ -101,10 +105,13 @@ public class HitFeedbackUI : MonoBehaviour
 
     void OnPlaybackStarted()
     {
-        hasActiveRun = true;
-        SetLiveHudVisible(true);
+        // Only scoring gameplay should show scoring HUD/end-stats.
+        hasActiveRun = IsGameplayModeActive();
+
+        SetLiveHudVisible(hasActiveRun);
         SetEndStatsVisible(false);
         SetBottomPanelVisible(true);
+
         if (hitFeedbackText != null)
         {
             hitFeedbackText.text = string.Empty;
@@ -113,7 +120,10 @@ public class HitFeedbackUI : MonoBehaviour
 
     void OnPlaybackCompleted()
     {
-        ShowEndStats(lastScore);
+        if (hasActiveRun)
+        {
+            ShowEndStats(lastScore);
+        }
     }
 
     void OnPlaybackStopped()
@@ -122,6 +132,11 @@ public class HitFeedbackUI : MonoBehaviour
         {
             ShowEndStats(lastScore);
         }
+    }
+
+    bool IsGameplayModeActive()
+    {
+        return gameModeManager != null && gameModeManager.IsGameplayMode;
     }
     
     void OnNoteHit(HitResult result)

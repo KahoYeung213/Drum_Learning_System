@@ -2,12 +2,14 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using TMPro;
+using System.Collections;
 
 public class TimelineUI : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private BeatmapPlayer beatmapPlayer;
     [SerializeField] private BeatmapSnipper beatmapSnipper; // For scissor/snip functionality
+    [SerializeField] private GameModeManager gameModeManager; // Keeps play click from forcing wrong mode
     [SerializeField] private Slider timelineSlider;
     [SerializeField] private TextMeshProUGUI currentTimeText;
     [SerializeField] private TextMeshProUGUI totalTimeText;
@@ -56,6 +58,11 @@ public class TimelineUI : MonoBehaviour
         if (beatmapSnipper == null)
         {
             beatmapSnipper = FindFirstObjectByType<BeatmapSnipper>();
+        }
+
+        if (gameModeManager == null)
+        {
+            gameModeManager = FindFirstObjectByType<GameModeManager>();
         }
         
         // Setup slider if assigned
@@ -255,8 +262,54 @@ public class TimelineUI : MonoBehaviour
             AppErrorPopup.Show(warningMessage);
             return;
         }
+
+        GameModeManager.AppMode expectedMode = GameModeManager.AppMode.FreePlay;
+        bool shouldRestoreMode = gameModeManager != null;
+        if (shouldRestoreMode)
+        {
+            expectedMode = gameModeManager.CurrentMode;
+        }
         
         beatmapPlayer.TogglePlayPause();
+
+        if (shouldRestoreMode)
+        {
+            if (gameModeManager.isActiveAndEnabled)
+            {
+                gameModeManager.StartCoroutine(RestoreModeAfterPlayClick(expectedMode));
+            }
+            else
+            {
+                RestoreModeImmediately(expectedMode);
+            }
+        }
+    }
+
+    IEnumerator RestoreModeAfterPlayClick(GameModeManager.AppMode expectedMode)
+    {
+        // Run after all click listeners have fired to prevent unintended mode overrides.
+        yield return null;
+
+        RestoreModeImmediately(expectedMode);
+    }
+
+    void RestoreModeImmediately(GameModeManager.AppMode expectedMode)
+    {
+        if (gameModeManager == null)
+            return;
+
+        switch (expectedMode)
+        {
+            case GameModeManager.AppMode.Gameplay:
+                gameModeManager.SwitchToGameplayMode();
+                break;
+            case GameModeManager.AppMode.Course:
+                gameModeManager.SwitchToCourseMode();
+                break;
+            default:
+                gameModeManager.SwitchToFreePlayMode();
+                break;
+        }
     }
     
     void OnStopClicked()
