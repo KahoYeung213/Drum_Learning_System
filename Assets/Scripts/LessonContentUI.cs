@@ -310,7 +310,17 @@ public class LessonContentUI : MonoBehaviour
 
         if (string.IsNullOrEmpty(selectedJsonPath))
         {
-            return null;
+            string expectedFolderPath = Path.GetDirectoryName(streamingJsonPath);
+            if (string.IsNullOrEmpty(expectedFolderPath) || !Directory.Exists(expectedFolderPath))
+            {
+                return null;
+            }
+
+            selectedJsonPath = FindAnyBeatmapJson(expectedFolderPath);
+            if (string.IsNullOrEmpty(selectedJsonPath))
+            {
+                return null;
+            }
         }
 
         string folderPath = Path.GetDirectoryName(selectedJsonPath);
@@ -326,6 +336,28 @@ public class LessonContentUI : MonoBehaviour
         }
 
         return loadedBeatmap;
+    }
+
+    private static string FindAnyBeatmapJson(string folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+        {
+            return null;
+        }
+
+        string canonicalJsonPath = Path.Combine(folderPath, "beatmap.json");
+        if (File.Exists(canonicalJsonPath))
+        {
+            return canonicalJsonPath;
+        }
+
+        string[] jsonFiles = Directory.GetFiles(folderPath, "*.json", SearchOption.TopDirectoryOnly);
+        if (jsonFiles.Length > 0)
+        {
+            return jsonFiles[0];
+        }
+
+        return null;
     }
 
     private void OnCompleteLessonClicked()

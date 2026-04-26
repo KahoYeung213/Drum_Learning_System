@@ -61,8 +61,9 @@ public class BeatmapLibrary : MonoBehaviour
             return;
         }
         
-        // Scan all folders recursively for beatmap.json files
-        string[] beatmapJsonFiles = Directory.GetFiles(beatmapsDirectory, "beatmap.json", SearchOption.AllDirectories);
+        // Scan all folders recursively for beatmap JSON files.
+        // Some bundled defaults still use a folder-specific JSON filename like single.json.
+        string[] beatmapJsonFiles = Directory.GetFiles(beatmapsDirectory, "*.json", SearchOption.AllDirectories);
 
         foreach (string jsonPath in beatmapJsonFiles)
         {
@@ -153,7 +154,12 @@ public class BeatmapLibrary : MonoBehaviour
     {
         try
         {
-            string jsonPath = Path.Combine(folderPath, "beatmap.json");
+            string jsonPath = ResolveBeatmapJsonPath(folderPath);
+            if (string.IsNullOrEmpty(jsonPath))
+            {
+                throw new FileNotFoundException("No beatmap JSON file found in folder.", folderPath);
+            }
+
             string jsonContent = File.ReadAllText(jsonPath);
             
             var wrapper = JsonUtility.FromJson<BeatmapWrapper>(jsonContent);
@@ -194,6 +200,28 @@ public class BeatmapLibrary : MonoBehaviour
             UnityEngine.Debug.LogError($"Error loading beatmap from {folderPath}: {e.Message}");
             return null;
         }
+    }
+
+    private static string ResolveBeatmapJsonPath(string folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+        {
+            return null;
+        }
+
+        string canonicalJsonPath = Path.Combine(folderPath, "beatmap.json");
+        if (File.Exists(canonicalJsonPath))
+        {
+            return canonicalJsonPath;
+        }
+
+        string[] jsonFiles = Directory.GetFiles(folderPath, "*.json", SearchOption.TopDirectoryOnly);
+        if (jsonFiles.Length > 0)
+        {
+            return jsonFiles[0];
+        }
+
+        return null;
     }
     
     public void AddBeatmap(BeatmapData beatmap)

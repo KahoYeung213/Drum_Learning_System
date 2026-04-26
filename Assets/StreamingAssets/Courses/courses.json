@@ -43,14 +43,6 @@
               ],
               "learningVideos": [],
               "exercises": [
-                {
-                  "id": "exercise-kit-intro-1",
-                  "title": "Kit Notes - 60 BPM",
-                  "description": "Single-note kit mapping at slow tempo.",
-                  "beatmapTitle": "Single Strokes 60",
-                  "beatmapJsonPath": "SingleStrokes60/beatmap.json",
-                  "requiredScore": 70
-                }
               ]
             }
           ]
