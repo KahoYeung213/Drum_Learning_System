@@ -39,6 +39,7 @@ public class GameModeManager : MonoBehaviour
     
     [Header("Always Visible UI")]
     [SerializeField] private GameObject playbackControls; // Play/Pause/Stop buttons (always visible)
+    [SerializeField] private GameObject sidebarToggleButton; // Hidden only in course/lessons mode
     
     [Header("References")]
     [SerializeField] private BeatmapPlayer beatmapPlayer; // To sync speed panel visibility with metronome
@@ -189,6 +190,9 @@ public class GameModeManager : MonoBehaviour
 
         // Course mode UI
         SetActive(coursePanel, isCourseMode);
+
+        // Sidebar toggle button should be hidden only in course/lessons mode.
+        SetActive(sidebarToggleButton, !isCourseMode);
         
         // Update speed panel visibility through BeatmapPlayer
         // Speed panel only visible when: metronome ON AND learning mode
