@@ -69,10 +69,8 @@ namespace UnityEngine.UI
 			base.OnDisable();
 		}
 		
-		protected override void OnValidate()
+		protected new void OnValidate()
 		{
-			base.OnValidate();
-			
 			if (this.group == null)
 			{
 				ToggleGroup tg = this.GetComponentInParent<ToggleGroup>();
